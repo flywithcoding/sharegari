@@ -157,7 +157,7 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
       dropAddress: _dropoff!.address,
       departAt: depart,
       windowMin: _flexibilityMinutes,
-      status: RideRequestStatus.pending,
+      status: RideRequestStatus.searching,
       estimatedSoloFare: soloFare,
       estimatedShareFare: shareFare4,
       createdAt: DateTime.now(),

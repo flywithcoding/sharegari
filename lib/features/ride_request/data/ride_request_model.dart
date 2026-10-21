@@ -2,7 +2,8 @@ import 'package:sharegari/core/location/location_model.dart';
 
 /// Mirrors the `request_status` Postgres enum.
 enum RideRequestStatus {
-  pending,
+  searching,   // waiting to be matched by the engine
+  pending,     // legacy (pre-migration 006 rows only)
   matched,
   confirmed,
   inProgress,
@@ -11,28 +12,31 @@ enum RideRequestStatus {
   expired;
 
   static RideRequestStatus fromString(String v) => switch (v) {
-        'pending' => pending,
-        'matched' => matched,
-        'confirmed' => confirmed,
+        'searching'   => searching,
+        'pending'     => pending,
+        'matched'     => matched,
+        'confirmed'   => confirmed,
         'in_progress' => inProgress,
-        'completed' => completed,
-        'cancelled' => cancelled,
-        'expired' => expired,
-        _ => pending,
+        'completed'   => completed,
+        'cancelled'   => cancelled,
+        'expired'     => expired,
+        _             => searching,  // safe default for unknown values
       };
 
   String get label => switch (this) {
-        pending => 'Finding riders',
-        matched => 'Matched',
-        confirmed => 'Confirmed',
-        inProgress => 'In progress',
-        completed => 'Completed',
-        cancelled => 'Cancelled',
-        expired => 'Expired',
+        searching   => 'Finding riders',
+        pending     => 'Finding riders',  // legacy
+        matched     => 'Matched',
+        confirmed   => 'Confirmed',
+        inProgress  => 'In progress',
+        completed   => 'Completed',
+        cancelled   => 'Cancelled',
+        expired     => 'Expired',
       };
 
   bool get isActive =>
-      this == pending || this == matched || this == confirmed ||
+      this == searching || this == pending ||
+      this == matched || this == confirmed ||
       this == inProgress;
 }
 

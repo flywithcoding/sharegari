@@ -156,16 +156,98 @@ RideRequestScreen
 
 ---
 
-## ⏭️ Step 7 — Matching Engine (NEXT)
+## ✅ Step 7 — Matching Engine (DONE)
 
-**Prompt to use:**
-> "Implement matching as a Supabase SQL function (PostGIS) or Edge Function following the PRD compatibility rules: overlapping time windows, pickup within 1.5 km, drop-off within 2 km, groups of 2-4. Create ride_groups and group_members. Write tests with sample data. Add a script that inserts 10 fake requests so I can test it."
+**Date:** 2026-10-21
 
-**What to do manually before Step 7:**
-1. Run `supabase db push` to apply migrations 003, 004, 005.
-2. Verify My Rides no longer throws `FormatException` — existing rows now have `pickup_lat`/`pickup_lng` populated.
-3. Verify Realtime: open two browser tabs → submit a ride in one → confirm the list in the other updates without refresh.
-4. Commit: `git add . && git commit -m "Step 6 complete + geo/realtime fixes"`
+### What was done
+
+#### SQL migrations for Step 7
+
+> **Note — enum split:** PostgreSQL does not allow a newly added enum value to be used
+> in the same transaction. Supabase runs each migration file in one transaction, so the
+> enum additions **must** be in a separate file from the schema/function that uses them.
+
+| File | Change |
+|------|--------|
+| `supabase/migrations/006_matching_engine.sql` | **Only** `ALTER TYPE ... ADD VALUE` for `'searching'` and `'pending_driver'`. Commits these values before 007 runs. |
+| `supabase/migrations/007_matching_engine_schema.sql` | Default status change, `'pending'` migration, `matching_window_min` config column, and the full `run_matching()` function. |
+
+| Schema change | Detail |
+|---------------|--------|
+| Enum: `request_status` | Added `'searching'` (new requests default to this; engine promotes to `'matched'`) |
+| Enum: `group_status` | Added `'pending_driver'` (newly formed groups start here; Step 8 moves to `'confirmed'`) |
+| `ride_requests.status` default | Changed from `'pending'` → `'searching'` |
+| Existing `'pending'` rows | Migrated to `'searching'` |
+| `pricing_config.matching_window_min` | Added (`int`, default 60) — look-ahead window in minutes |
+| `run_matching()` | Full SECURITY DEFINER PL/pgSQL function (see below) |
+
+#### `run_matching()` function
+
+- **Expiry first**: marks `searching` rows as `expired` if departure ≤ `expire_before_min` minutes away (default 15).
+- **Eligible window**: considers `searching` requests departing within `matching_window_min` minutes (default 60).
+- **Concurrency**: outer and inner loops both use `FOR UPDATE SKIP LOCKED` — safe for parallel calls.
+- **Compatibility** (all three must hold, using PostGIS geography columns):
+  - Time windows overlap
+  - Pickup distance ≤ `max_pickup_radius_m` (default 1500 m)
+  - Drop-off distance ≤ `max_dropoff_radius_m` (default 2000 m)
+- **Greedy NN ordering**: candidates added nearest-pickup-first; `pickup_order` = batch position.
+- **Group size**: 2–4 riders (anchor + up to 3 candidates). Prefers 4 > 3 > 2 naturally via the `LIMIT 3` candidate query.
+- **Fare**: `car_fare = max(min_fare, base + per_km × km + per_min × min)` where `km = straight_line × 1.30`. `rider_fare = roundUp5(car_fare / n × (1 + platform_fee_pct))`.
+- **Writes**: `ride_groups` (status `pending_driver`), `group_members` (with `pickup_order`/`dropoff_order`, locked `fare`), and `ride_requests.status = 'matched'`.
+- **Returns**: JSONB `{groups_formed, riders_matched, riders_expired, ran_at}`.
+
+#### pg_cron
+Supabase **Free/Starter** plans do **not** have `pg_cron`. Call the function manually:
+```sql
+SELECT run_matching();
+```
+To check if your project has pg_cron:
+```sql
+SELECT * FROM pg_extension WHERE extname = 'pg_cron';
+```
+If it's available, uncomment the `cron.schedule` block at the bottom of `007_matching_engine_schema.sql` and push again.
+
+#### Config table (all limits in `pricing_config` — never hardcoded)
+
+| Column | Default | Meaning |
+|--------|---------|---------|
+| `max_pickup_radius_m` | 1500 m | Max pickup distance for compatibility |
+| `max_dropoff_radius_m` | 2000 m | Max drop-off distance for compatibility |
+| `expire_before_min` | 15 min | Requests expiry threshold |
+| `matching_window_min` | 60 min | Look-ahead window *(added by this migration)* |
+
+#### Test files
+
+| File | Purpose |
+|------|---------|
+| `supabase/seed_test_requests.sql` | 10 fake requests: Group A (4 Uttara→Motijheel), Group B (2 Mirpur→Gulshan), Group C (2 Dhanmondi→Farmgate), 2 no-match cases (Chittagong + departure >60 min) |
+| `supabase/verify_matching.sql` | Runs `run_matching()`, then shows: request status summary, groups formed, member fares, divisibility-by-5 check, no-match verification, pickup-proximity sanity query |
+
+#### Flutter changes (minimal — no new screens)
+
+| File | Change |
+|------|--------|
+| `lib/features/ride_request/data/ride_request_model.dart` | Added `searching` to `RideRequestStatus` enum, `fromString`, `label`, `isActive` |
+| `lib/features/ride_request/ride_request_screen.dart` | `_submit()` now sets `status: RideRequestStatus.searching` |
+| `lib/features/my_rides/my_rides_screen.dart` | Filter chip, `_dbStatus`, cancel guard, `_statusBorderColor`, `_StatusBadge` all handle `searching` |
+
+- `flutter analyze lib` → **No issues**
+
+### Known limitations / Step 10 TODOs
+- **Route distance**: using `straight_line × 1.30` as a proxy. Replace with ORS `/v2/directions` call in Step 10 (or an Edge Function callable from within the DB function).
+- **dropoff_order**: currently FIFO (same order as pickup). True greedy drop-off ordering (sort by distance from the last pickup) is a Phase 2 improvement.
+- **pg_cron**: left as commented stub. Free/Starter plan users must call `SELECT run_matching();` manually or set up a cron-triggered Edge Function.
+
+---
+
+## ⏭️ Step 8 — Realtime Group Status Screen (NEXT)
+
+**What to do manually before Step 8:**
+1. Run `supabase db push` to apply all pending migrations (003 → 007).
+2. Seed and verify: run `seed_test_requests.sql`, then `verify_matching.sql` in the Supabase SQL editor.
+3. Confirm `run_matching()` returns `{ groups_formed: 3, riders_matched: 8, riders_expired: 0 }`.
+4. Commit: `git add . && git commit -m "Step 7 done — matching engine"`
 
 ---
 
@@ -179,13 +261,11 @@ RideRequestScreen
 | 4 | flutter_map + OpenStreetMap + Barikoi geocoding | Done |
 | 5 | Ride request to Supabase, My Rides list | Done |
 | 6 | Fare calculation (ORS distance), unit tests + geo/realtime fixes | Done |
-| 7 | Matching engine (PostGIS SQL function) | **Next** |
-| 8 | Realtime group status screen | - |
+| 7 | Matching engine (PostGIS SQL function) | Done |
+| 8 | Realtime group status screen | **Next** |
 | 9 | Driver mode screens | - |
-| 10 | Live tracking | - |
+| 10 | Live tracking + ORS route distance in matching | - |
 | 11 | Push notifications (FCM) | - |
 | 12 | Payments (cash + bKash/Nagad) | - |
 | 13 | Ratings, SOS, admin panel | - |
 | 14 | Driver auto-assign, Bangla i18n, beta | - |
-
-

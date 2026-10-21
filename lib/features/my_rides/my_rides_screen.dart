@@ -25,7 +25,7 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
 
   static const _filters = <String?, String>{
     null: 'All',
-    'pending': 'Finding',
+    'searching': 'Finding',
     'matched': 'Matched',
     'confirmed': 'Confirmed',
     'in_progress': 'Active',
@@ -141,13 +141,14 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
 
   /// Maps [RideRequestStatus] enum value → Postgres status string.
   String _dbStatus(RideRequestStatus s) => switch (s) {
-        RideRequestStatus.pending => 'pending',
-        RideRequestStatus.matched => 'matched',
-        RideRequestStatus.confirmed => 'confirmed',
+        RideRequestStatus.searching  => 'searching',
+        RideRequestStatus.pending    => 'pending',
+        RideRequestStatus.matched    => 'matched',
+        RideRequestStatus.confirmed  => 'confirmed',
         RideRequestStatus.inProgress => 'in_progress',
-        RideRequestStatus.completed => 'completed',
-        RideRequestStatus.cancelled => 'cancelled',
-        RideRequestStatus.expired => 'expired',
+        RideRequestStatus.completed  => 'completed',
+        RideRequestStatus.cancelled  => 'cancelled',
+        RideRequestStatus.expired    => 'expired',
       };
 
   Future<void> _cancelRide(RideRequest ride) async {
@@ -255,7 +256,8 @@ class _RideCard extends StatelessWidget {
           ],
 
           // Cancel button (only for pending)
-          if (ride.status == RideRequestStatus.pending) ...[
+          if (ride.status == RideRequestStatus.searching ||
+              ride.status == RideRequestStatus.pending) ...[
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
@@ -277,13 +279,14 @@ class _RideCard extends StatelessWidget {
   }
 
   Color _statusBorderColor(RideRequestStatus s) => switch (s) {
-        RideRequestStatus.pending => AppColors.primary,
-        RideRequestStatus.matched => Colors.amber,
+        RideRequestStatus.searching => AppColors.primary,
+        RideRequestStatus.pending   => AppColors.primary,
+        RideRequestStatus.matched   => Colors.amber,
         RideRequestStatus.confirmed => Colors.green,
         RideRequestStatus.inProgress => Colors.blue,
         RideRequestStatus.completed => AppColors.onSurfaceMuted,
         RideRequestStatus.cancelled => AppColors.error,
-        RideRequestStatus.expired => AppColors.onSurfaceMuted,
+        RideRequestStatus.expired   => AppColors.onSurfaceMuted,
       };
 }
 
@@ -320,15 +323,16 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, bg) = switch (status) {
-      RideRequestStatus.pending => (AppColors.primary, AppColors.primary),
-      RideRequestStatus.matched => (Colors.amber.shade700, Colors.amber),
-      RideRequestStatus.confirmed => (Colors.green.shade700, Colors.green),
+      RideRequestStatus.searching  => (AppColors.primary, AppColors.primary),
+      RideRequestStatus.pending    => (AppColors.primary, AppColors.primary),
+      RideRequestStatus.matched    => (Colors.amber.shade700, Colors.amber),
+      RideRequestStatus.confirmed  => (Colors.green.shade700, Colors.green),
       RideRequestStatus.inProgress => (Colors.blue.shade700, Colors.blue),
-      RideRequestStatus.completed =>
+      RideRequestStatus.completed  =>
         (AppColors.onSurfaceMuted, AppColors.surfaceVariant),
-      RideRequestStatus.cancelled =>
+      RideRequestStatus.cancelled  =>
         (AppColors.error, AppColors.error),
-      RideRequestStatus.expired =>
+      RideRequestStatus.expired    =>
         (AppColors.onSurfaceMuted, AppColors.surfaceVariant),
     };
     return Container(
