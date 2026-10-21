@@ -531,7 +531,7 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
             ),
             const SizedBox(height: 12),
             OutlinedButton(
-              onPressed: () => context.go(AppRoutes.myRides),
+              onPressed: _goBack,
               child: const Text('Back to My Rides'),
             ),
           ],
@@ -564,7 +564,7 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
             ),
             const SizedBox(height: 12),
             OutlinedButton(
-              onPressed: () => context.go(AppRoutes.myRides),
+              onPressed: _goBack,
               child: const Text('Back to My Rides'),
             ),
           ],

@@ -356,13 +356,59 @@ flutter build appbundle --release
 
 ---
 
+## ✅ Bug fix — Navigation: My Rides back button missing (DONE)
+
+**Date:** 2026-10-21
+
+### Root cause
+
+Two problems compounded:
+
+1. **`ride_request_screen.dart`** used `context.go(rideStatusPath)` after submitting a ride — this replaced the entire stack, so Status Screen had no history and `context.canPop()` returned false. When "Back" was pressed and the screen called `context.go(myRides)`, My Rides was placed at the stack root with nothing behind it — no back button.
+
+2. **`ride_status_screen.dart`** — the AppBar's `BackButton`, the cancel-success handler, and both "Back to My Rides" buttons in the expired/cancelled states all called `context.go(AppRoutes.myRides)`, which always replaced the stack. The `_goBack()` helper added in a previous session was added but the two buttons in the expired/cancelled body were not updated (the previous session's multi-replace failed silently).
+
+3. **`my_rides_screen.dart`** — had no explicit `leading:` in the AppBar, so Flutter's `automaticallyImplyLeading` hid the back button when the screen was the stack root.
+
+### Fixes applied
+
+| File | Change |
+|------|--------|
+| `lib/features/ride_request/ride_request_screen.dart` | `context.go` → `context.push` after submit (already fixed in prior session — verified present) |
+| `lib/features/ride_status/ride_status_screen.dart` | The two remaining `context.go(AppRoutes.myRides)` in `_expiredBody` and `_cancelledBody` replaced with `_goBack()` |
+| `lib/features/my_rides/my_rides_screen.dart` | Added explicit `leading: IconButton` with `canPop() ? pop() : go(home)` — back button always visible |
+
+### Navigation invariant (all screens)
+
+| Call | When to use |
+|------|-------------|
+| `context.push` | Forward navigation (Home→MyRides, MyRides→Status, etc.) |
+| `context.pop` / `_goBack()` | Backward navigation |
+| `context.go` | Auth-root resets only (sign-out → login, register success → home) |
+
+- `flutter analyze lib` → **No issues**
+
+---
+
 ## ⏭️ Step 9 — Driver Mode Screens (NEXT)
 
 **What to do manually before Step 9:**
-1. Run `supabase db push` to apply migrations 006–010.
-2. Run `supabase/test_status_flow.sql` in the SQL editor: find a group_id from step 1's output, replace `'YOUR-GROUP-ID-HERE'`, and run each UPDATE to watch the screen update live.
-3. Commit: `git add . && git commit -m "Step 8 done + auth fix + R8 fix"`
+1. Run `supabase db push` to apply migrations 006–010 (if not already applied).
+2. Test the status screen:
+   - Run `supabase/test_status_flow.sql` in the Supabase SQL editor.
+   - Copy a `group_id` from the SELECT result.
+   - Uncomment and run each UPDATE (replacing `'YOUR-GROUP-ID-HERE'` with the real UUID) while watching the app.
+3. Commit: `git add . && git commit -m "Step 8 complete + nav fix + auth fix + R8 fix"`
 
+### Release build command (always use this)
+```powershell
+flutter build apk --release --dart-define-from-file=env.json
+```
+> ⚠️ **Never omit `--dart-define-from-file=env.json`** — the app will crash without API keys.
+>
+> ⚠️ **Keep `isMinifyEnabled = false` and `isShrinkResources = false`** in `android/app/build.gradle.kts` — R8 breaks `shared_preferences_android` at runtime.
+
+---
 
 ## Upcoming steps (reference)
 

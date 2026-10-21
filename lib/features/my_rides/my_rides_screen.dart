@@ -40,6 +40,19 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Rides'),
+        // Explicit leading so the back button always appears, regardless of
+        // how this screen was reached (context.push vs context.go).
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: 'Back',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(AppRoutes.home);
+            }
+          },
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_rounded),
