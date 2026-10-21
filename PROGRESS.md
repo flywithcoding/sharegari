@@ -23,14 +23,7 @@ flutter run --dart-define-from-file=env.json
 **Date:** 2026-10-20
 
 ### What was done
-- `supabase/migrations/001_initial_schema.sql`
-  - Extensions: `uuid-ossp`, `postgis`
-  - 7 custom enums, 9 tables (with `geography(Point,4326)` geo columns), 11 indexes (3× GIST), RLS on all tables
-  - Seeded `pricing_config` singleton (৳30 base, ৳18/km, 70% sharing factor, 10% fee)
-
-### How to apply
-1. Supabase dashboard → **SQL Editor** → paste `001_initial_schema.sql` → **Run**
-2. Verify 9 tables + PostGIS extension visible
+- `supabase/migrations/001_initial_schema.sql` — 9 tables, 7 enums, PostGIS, RLS, seed data
 
 ---
 
@@ -39,30 +32,13 @@ flutter run --dart-define-from-file=env.json
 **Date:** 2026-10-21
 
 ### What was done
+- `supabase/migrations/002_auth_trigger.sql` — SECURITY DEFINER trigger auto-creates `public.users`
+- Email auth (login + register screens), auth-guarded GoRouter, sign-out wired
+- `flutter analyze lib` — No issues
 
-#### SQL
-- `supabase/migrations/002_auth_trigger.sql`
-  - `handle_new_user()` SECURITY DEFINER trigger — fires on every `auth.users` INSERT
-  - Inserts a `public.users` row from signup metadata (name, phone, role)
-
-#### Flutter — new / updated files
-| File | Change |
-|------|--------|
-| `lib/core/supabase/supabase_client_provider.dart` | `Provider<SupabaseClient>` |
-| `lib/features/auth/data/auth_repository.dart` | sign up / in / out; `AuthResult` value object |
-| `lib/features/auth/providers/auth_providers.dart` | `authStateProvider` (stream) + `currentUserProvider` |
-| `lib/features/auth/login_screen.dart` | Real email+password form |
-| `lib/features/auth/register_screen.dart` | Name, email, phone, password, role picker |
-| `lib/core/router/app_router.dart` | Auth-guarded router + `_AuthChangeNotifier` |
-| `lib/main.dart` | `Supabase.initialize` live; `ConsumerWidget` |
-| `lib/features/home/home_screen.dart` | Sign-out button wired to `AuthRepository` |
-
-- `flutter analyze lib` — **No issues found**
-
-### Before running Step 3
-1. Run `supabase/migrations/002_auth_trigger.sql` in Supabase SQL editor
-2. Supabase dashboard → **Authentication → Settings** → disable "Confirm email" (dev only)
-3. `flutter run --dart-define-from-file=env.json`
+### Before running
+1. Run `002_auth_trigger.sql` in Supabase SQL editor
+2. Supabase dashboard → **Authentication → Settings** → disable "Confirm email"
 
 ---
 
@@ -71,72 +47,73 @@ flutter run --dart-define-from-file=env.json
 **Date:** 2026-10-21
 
 ### What was done
+- `flutter_map` 7.0.2 + `latlong2` + `http` added
+- Abstract `GeocodingService` with Barikoi (primary) + Nominatim (fallback) implementations
+- `MapPicker` widget: tap-to-pin, mode toggle, auto reverse-geocode, dotted polyline
+- `showLocationSearchSheet`: debounced bottom-sheet search
+- `flutter analyze lib` — No issues
 
-#### New packages added
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `flutter_map` | 7.0.2 | OSM map tiles + tap-to-pin |
-| `latlong2` | 0.9.1 | `LatLng` type |
-| `http` | 1.2.2 | Barikoi / Nominatim REST calls |
+---
+
+## ✅ Step 5 — Ride Request to Supabase + My Rides List (DONE)
+
+**Date:** 2026-10-21
+
+### What was done
+
+#### New package
+- `intl: ^0.20.1` — for `DateFormat` in the ride card
 
 #### New files
 | File | Purpose |
 |------|---------|
-| `lib/core/location/location_model.dart` | `LocationResult` value object (LatLng + address + name) |
-| `lib/core/location/geocoding_service.dart` | Abstract `GeocodingService` interface (search + reverseGeocode) |
-| `lib/core/location/barikoi_geocoding_service.dart` | Barikoi implementation (BD-focused, free tier) |
-| `lib/core/location/nominatim_geocoding_service.dart` | Nominatim/OSM fallback (no key needed; respects rate limit) |
-| `lib/core/location/geocoding_provider.dart` | Riverpod `Provider<GeocodingService>` — uses Barikoi if key present, Nominatim otherwise |
-| `lib/features/ride_request/widgets/map_picker.dart` | `MapPicker` ConsumerStatefulWidget — flutter_map with tap-to-pin, mode toggle, auto reverse-geocode |
-| `lib/features/ride_request/widgets/location_search_sheet.dart` | `showLocationSearchSheet()` — debounced bottom sheet search returning `LocationResult` |
+| `lib/features/ride_request/data/ride_request_model.dart` | `RideRequest` model + `RideRequestStatus` enum; PostGIS WKT serialisation |
+| `lib/features/ride_request/data/ride_request_repository.dart` | `insert()`, `cancel()`, `fetchMyRides()`, `watchMyRides()` stream |
+| `lib/features/ride_request/providers/ride_request_providers.dart` | `myRidesProvider` — Riverpod `StreamProvider` wired to Supabase Realtime |
 
-#### Updated file
-- `lib/features/ride_request/ride_request_screen.dart` — replaced `_MapPlaceholder` with live `MapPicker` + `_LocationField` tap-to-search fields, `_FlexChips` (±10/15/20 min), "Find Shared Ride" button disabled until both pins are set
-
-#### Architecture: geocoding is behind an interface
-```
-GeocodingService (abstract)
-  ├── BarikoiGeocodingService  ← used when BARIKOI_API_KEY present
-  └── NominatimGeocodingService ← fallback, no key needed
-```
-Swapping provider requires changing one line in `geocoding_provider.dart`.
-
-#### Tile provider selection (no hardcoded keys)
-```
-AppEnv.mapTilerApiKey present? → MapTiler Streets free tier (100k/month)
-                          else → tile.openstreetmap.org (no key)
-```
+#### Updated files
+| File | Change |
+|------|--------|
+| `lib/features/ride_request/ride_request_screen.dart` | `_submit()` calls `repository.insert()`; loading spinner + error banner; navigates to `/my-rides` on success |
+| `lib/features/my_rides/my_rides_screen.dart` | Full real-time list from Supabase; filter chips; ride cards with status badge, route, fare; cancel button; pull-to-refresh; empty/error states |
 
 - `flutter analyze lib` — **No issues found**
 
-### How location picking works
-1. Screen opens: map centred on Dhaka (23.8103, 90.4125)
-2. Tap map → pins pickup (green) or drop-off (orange) depending on mode toggle
-3. After tap: auto reverse-geocode fills the address field
-4. OR: tap a location field → `showLocationSearchSheet` opens → type ≥2 chars → debounced `GeocodingService.search()` → tap result → field and pin both update
-5. Dotted polyline drawn between pickup and drop-off when both are set
-6. "Find Shared Ride" button enabled only when both locations are set
+### Data flow
+```
+RideRequestScreen._submit()
+  → RideRequest.toInsertJson()         (WKT geo, UTC timestamps)
+  → RideRequestRepository.insert()      (Supabase INSERT → SELECT)
+  → navigate to /my-rides
 
-### Before running Step 4
-1. Fill `BARIKOI_API_KEY` and `MAPTILER_API_KEY` in `env.json` (already done)
-2. `flutter run --dart-define-from-file=env.json`
-3. Navigate: Home → "Request Ride" FAB
+MyRidesScreen
+  → myRidesProvider (StreamProvider)
+  → RideRequestRepository.watchMyRides()
+  → Supabase Realtime (.stream())
+  → rebuilds on every INSERT/UPDATE/DELETE
+```
+
+### PostGIS geography handling
+- **INSERT**: `SRID=4326;POINT(lng lat)` WKT string → PostGIS parses on server
+- **SELECT**: Supabase returns `POINT(lng lat)` WKT → `_parseGeo()` splits to `LatLng`
 
 ### Known issues / TODOs
-- Nominatim rate limit: 1 req/s. The debounce (400ms) + search-only-on-submit design prevents bursting, but add a stricter queue if heavy testing is done.
-- MapController is disposed but `FlutterMap` does not need an externally provided controller; it was kept for future programmatic pan/zoom (Step 10 tracking).
-- `AppEnv.assertAll()` still asserts ORS/Barikoi/MapTiler keys; those will naturally be present for Steps 4–6.
+- `RideRequestStatus.inProgress` name maps to `in_progress` DB string — handled in `_dbStatus()` switch. Dart enum names can't contain underscores.
+- `fetchMyRides` is not used by the screen (it uses the realtime stream) but is available for non-realtime contexts (e.g., tests, export).
+- `estimated_solo_fare` / `estimated_share_fare` columns remain null until Step 6 (ORS distance + fare calculator).
+- The `intl` package version is pinned to `^0.20.1` (already a transitive dep via flutter_map); no additional download was needed.
 
 ---
 
-## ⏭️ Step 5 — Ride Request to Supabase + My Rides List (NEXT)
+## ⏭️ Step 6 — Fare Calculation + Unit Tests (NEXT)
 
 **Prompt to use:**
-> "Let the rider choose a departure time and time flexibility, then save a ride_request to Supabase. Show 'My Rides' with status. No matching yet."
+> "Use OpenRouteService to get route distance and duration. Implement the fare calculator from the PRD (solo fare, shared fare, platform fee). Put the pricing numbers in a config table. Write unit tests. Show estimated solo vs shared price on the request screen."
 
-**What to do manually before Step 5:**
-1. Verify the map and search work end-to-end on a device/emulator
-2. Commit: `git add . && git commit -m "Step 4 done"`
+**What to do manually before Step 6:**
+1. Verify the full flow end-to-end: register → Request Ride → pin locations → submit → see request in My Rides
+2. Check Supabase Table Editor: confirm the row appears in `ride_requests` with correct `pickup_geo`, `drop_geo`, `depart_at`
+3. Commit: `git add . && git commit -m "Step 5 done"`
 
 ---
 
@@ -148,8 +125,8 @@ AppEnv.mapTilerApiKey present? → MapTiler Streets free tier (100k/month)
 | 2 | Supabase SQL migration + PostGIS + RLS | Done |
 | 3 | Supabase auth (email dev, phone OTP later) | Done |
 | 4 | flutter_map + OpenStreetMap + Barikoi geocoding | Done |
-| 5 | Ride request to Supabase, My Rides list | Next |
-| 6 | Fare calculation (ORS distance), unit tests | - |
+| 5 | Ride request to Supabase, My Rides list | Done |
+| 6 | Fare calculation (ORS distance), unit tests | Next |
 | 7 | Matching engine (PostGIS SQL function) | - |
 | 8 | Realtime group status screen | - |
 | 9 | Driver mode screens | - |
