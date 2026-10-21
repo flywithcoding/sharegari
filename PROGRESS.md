@@ -42,57 +42,101 @@ flutter run --dart-define-from-file=env.json
 
 #### SQL
 - `supabase/migrations/002_auth_trigger.sql`
-  - `handle_new_user()` function (`SECURITY DEFINER`) — fires on every `auth.users` INSERT
-  - Reads `name`, `phone`, `role` from signup metadata and inserts a `public.users` row
-  - `on_auth_user_created` trigger attached to `auth.users`
+  - `handle_new_user()` SECURITY DEFINER trigger — fires on every `auth.users` INSERT
+  - Inserts a `public.users` row from signup metadata (name, phone, role)
 
-#### Flutter — new files
-| File | Purpose |
-|------|---------|
-| `lib/core/supabase/supabase_client_provider.dart` | Riverpod `Provider<SupabaseClient>` wrapping the singleton |
-| `lib/features/auth/data/auth_repository.dart` | `AuthRepository`: sign up, sign in, sign out; returns `AuthResult` (never throws) |
-| `lib/features/auth/providers/auth_providers.dart` | `authStateProvider` (Stream), `currentUserProvider` (sync User?) |
-| `lib/features/auth/register_screen.dart` | Registration: name, email, phone, password, rider/driver role picker |
-
-#### Flutter — updated files
+#### Flutter — new / updated files
 | File | Change |
 |------|--------|
-| `lib/features/auth/login_screen.dart` | Replaced placeholder → real email+password form, loading state, error banner |
-| `lib/core/router/app_router.dart` | Added `/register` route; auth-guarded redirect via `_AuthChangeNotifier` + `refreshListenable` |
-| `lib/main.dart` | Uncommented `Supabase.initialize`; `ShareGariApp` → `ConsumerWidget` passes `WidgetRef` to `createRouter` |
-| `lib/features/home/home_screen.dart` | `ConsumerWidget`; reads `currentUserProvider` for greeting; sign-out button wired to `AuthRepository.signOut()` |
+| `lib/core/supabase/supabase_client_provider.dart` | `Provider<SupabaseClient>` |
+| `lib/features/auth/data/auth_repository.dart` | sign up / in / out; `AuthResult` value object |
+| `lib/features/auth/providers/auth_providers.dart` | `authStateProvider` (stream) + `currentUserProvider` |
+| `lib/features/auth/login_screen.dart` | Real email+password form |
+| `lib/features/auth/register_screen.dart` | Name, email, phone, password, role picker |
+| `lib/core/router/app_router.dart` | Auth-guarded router + `_AuthChangeNotifier` |
+| `lib/main.dart` | `Supabase.initialize` live; `ConsumerWidget` |
+| `lib/features/home/home_screen.dart` | Sign-out button wired to `AuthRepository` |
 
 - `flutter analyze lib` — **No issues found**
 
-### Auth flow
-1. App starts → `Supabase.initialize` restores persisted session (if any)
-2. GoRouter redirect: unauthenticated → `/login`; signed-in visiting login/register → `/`
-3. `/login` → email+password sign-in → navigates to `/`
-4. `/register` → fills form → `AuthRepository.signUpWithEmail` → Postgres trigger creates `public.users` → navigates to `/`
-5. Home screen sign-out button → `AuthRepository.signOut()` → router redirects to `/login`
-
 ### Before running Step 3
 1. Run `supabase/migrations/002_auth_trigger.sql` in Supabase SQL editor
-2. In Supabase dashboard → **Authentication → Settings** → disable "Confirm email" for development (so signup completes immediately without email confirmation)
-3. Then run: `flutter run --dart-define-from-file=env.json`
-
-### Known issues / TODOs
-- Email login is a dev shortcut. Phone OTP will replace it (Step 3b or later) once an SMS provider is set up.
-- `Supabase.initialize` uses `anonKey:` which is internally deprecated in favour of `publishableKey:`; suppressed with `// ignore:` until the package renames the parameter in a major version.
-- `currentUserProvider` is synchronous — on first cold start after session restore, there's a brief moment where it returns null before the stream fires. The router handles this via `authValue.isLoading` check.
+2. Supabase dashboard → **Authentication → Settings** → disable "Confirm email" (dev only)
+3. `flutter run --dart-define-from-file=env.json`
 
 ---
 
-## ⏭️ Step 4 — Map and Location Picking (NEXT)
+## ✅ Step 4 — Map and Location Picking (DONE)
+
+**Date:** 2026-10-21
+
+### What was done
+
+#### New packages added
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `flutter_map` | 7.0.2 | OSM map tiles + tap-to-pin |
+| `latlong2` | 0.9.1 | `LatLng` type |
+| `http` | 1.2.2 | Barikoi / Nominatim REST calls |
+
+#### New files
+| File | Purpose |
+|------|---------|
+| `lib/core/location/location_model.dart` | `LocationResult` value object (LatLng + address + name) |
+| `lib/core/location/geocoding_service.dart` | Abstract `GeocodingService` interface (search + reverseGeocode) |
+| `lib/core/location/barikoi_geocoding_service.dart` | Barikoi implementation (BD-focused, free tier) |
+| `lib/core/location/nominatim_geocoding_service.dart` | Nominatim/OSM fallback (no key needed; respects rate limit) |
+| `lib/core/location/geocoding_provider.dart` | Riverpod `Provider<GeocodingService>` — uses Barikoi if key present, Nominatim otherwise |
+| `lib/features/ride_request/widgets/map_picker.dart` | `MapPicker` ConsumerStatefulWidget — flutter_map with tap-to-pin, mode toggle, auto reverse-geocode |
+| `lib/features/ride_request/widgets/location_search_sheet.dart` | `showLocationSearchSheet()` — debounced bottom sheet search returning `LocationResult` |
+
+#### Updated file
+- `lib/features/ride_request/ride_request_screen.dart` — replaced `_MapPlaceholder` with live `MapPicker` + `_LocationField` tap-to-search fields, `_FlexChips` (±10/15/20 min), "Find Shared Ride" button disabled until both pins are set
+
+#### Architecture: geocoding is behind an interface
+```
+GeocodingService (abstract)
+  ├── BarikoiGeocodingService  ← used when BARIKOI_API_KEY present
+  └── NominatimGeocodingService ← fallback, no key needed
+```
+Swapping provider requires changing one line in `geocoding_provider.dart`.
+
+#### Tile provider selection (no hardcoded keys)
+```
+AppEnv.mapTilerApiKey present? → MapTiler Streets free tier (100k/month)
+                          else → tile.openstreetmap.org (no key)
+```
+
+- `flutter analyze lib` — **No issues found**
+
+### How location picking works
+1. Screen opens: map centred on Dhaka (23.8103, 90.4125)
+2. Tap map → pins pickup (green) or drop-off (orange) depending on mode toggle
+3. After tap: auto reverse-geocode fills the address field
+4. OR: tap a location field → `showLocationSearchSheet` opens → type ≥2 chars → debounced `GeocodingService.search()` → tap result → field and pin both update
+5. Dotted polyline drawn between pickup and drop-off when both are set
+6. "Find Shared Ride" button enabled only when both locations are set
+
+### Before running Step 4
+1. Fill `BARIKOI_API_KEY` and `MAPTILER_API_KEY` in `env.json` (already done)
+2. `flutter run --dart-define-from-file=env.json`
+3. Navigate: Home → "Request Ride" FAB
+
+### Known issues / TODOs
+- Nominatim rate limit: 1 req/s. The debounce (400ms) + search-only-on-submit design prevents bursting, but add a stricter queue if heavy testing is done.
+- MapController is disposed but `FlutterMap` does not need an externally provided controller; it was kept for future programmatic pan/zoom (Step 10 tracking).
+- `AppEnv.assertAll()` still asserts ORS/Barikoi/MapTiler keys; those will naturally be present for Steps 4–6.
+
+---
+
+## ⏭️ Step 5 — Ride Request to Supabase + My Rides List (NEXT)
 
 **Prompt to use:**
-> "Add flutter_map with OpenStreetMap tiles to the Request Ride screen. Let the user pick pickup and drop-off by tapping the map and by searching with Barikoi. Wrap geocoding behind an abstract service interface. Use a free-tier tile provider, keep the API keys in a config file excluded from git."
+> "Let the rider choose a departure time and time flexibility, then save a ride_request to Supabase. Show 'My Rides' with status. No matching yet."
 
-**What to do manually before Step 4:**
-1. Run `supabase/migrations/002_auth_trigger.sql` in Supabase SQL editor
-2. Disable email confirmation in Supabase Auth settings
-3. Test the full auth flow: register → home → sign out → sign in
-4. Commit: `git add . && git commit -m "Step 3 done"`
+**What to do manually before Step 5:**
+1. Verify the map and search work end-to-end on a device/emulator
+2. Commit: `git add . && git commit -m "Step 4 done"`
 
 ---
 
@@ -103,8 +147,8 @@ flutter run --dart-define-from-file=env.json
 | 1 | Project skeleton, Riverpod, GoRouter, theme, placeholder screens | Done |
 | 2 | Supabase SQL migration + PostGIS + RLS | Done |
 | 3 | Supabase auth (email dev, phone OTP later) | Done |
-| 4 | flutter_map + OpenStreetMap + Barikoi geocoding | Next |
-| 5 | Ride request to Supabase, My Rides list | - |
+| 4 | flutter_map + OpenStreetMap + Barikoi geocoding | Done |
+| 5 | Ride request to Supabase, My Rides list | Next |
 | 6 | Fare calculation (ORS distance), unit tests | - |
 | 7 | Matching engine (PostGIS SQL function) | - |
 | 8 | Realtime group status screen | - |
