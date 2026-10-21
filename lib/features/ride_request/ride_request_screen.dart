@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sharegari/core/location/location_model.dart';
+import 'package:sharegari/core/pricing/fare_calculator.dart';
+import 'package:sharegari/core/pricing/fare_calculator_provider.dart';
 import 'package:sharegari/core/router/app_router.dart';
+import 'package:sharegari/core/routing/ors_routing_service.dart';
+import 'package:sharegari/core/routing/routing_service.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
 import 'package:sharegari/features/auth/providers/auth_providers.dart';
 import 'package:sharegari/features/ride_request/data/ride_request_model.dart';
@@ -11,8 +15,8 @@ import 'package:sharegari/features/ride_request/data/ride_request_repository.dar
 import 'package:sharegari/features/ride_request/widgets/location_search_sheet.dart';
 import 'package:sharegari/features/ride_request/widgets/map_picker.dart';
 
-/// Ride request screen — map picker + Barikoi search + time/flexibility.
-/// Saves to Supabase on submit (Step 5).
+/// Ride request screen — map picker, Barikoi search, ORS fare estimate,
+/// Supabase INSERT with estimated fares saved on the row.
 class RideRequestScreen extends ConsumerStatefulWidget {
   const RideRequestScreen({super.key});
 
@@ -29,7 +33,11 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
   bool _submitting = false;
   String? _errorMessage;
 
-  // ── Location search helpers ──────────────────────────────────────────
+  /// Cached route result — recomputed whenever both pins change.
+  OrsRouteResult? _route;
+  bool _fetchingRoute = false;
+
+  // ── Location helpers ─────────────────────────────────────────────────
 
   Future<void> _searchPickup() async {
     final result = await showLocationSearchSheet(
@@ -37,7 +45,10 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
       ref,
       hint: 'Search pickup location…',
     );
-    if (result != null) setState(() => _pickup = result);
+    if (result != null) {
+      setState(() => _pickup = result);
+      _refreshRoute();
+    }
   }
 
   Future<void> _searchDropoff() async {
@@ -46,23 +57,51 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
       ref,
       hint: 'Search drop-off location…',
     );
-    if (result != null) setState(() => _dropoff = result);
+    if (result != null) {
+      setState(() => _dropoff = result);
+      _refreshRoute();
+    }
+  }
+
+  // ── Route + fare ─────────────────────────────────────────────────────
+
+  /// Fetches a fresh route from ORS whenever both pins are set.
+  Future<void> _refreshRoute() async {
+    if (_pickup == null || _dropoff == null) return;
+    setState(() {
+      _fetchingRoute = true;
+      _route = null;
+    });
+    final routing = ref.read(routingServiceProvider);
+    final result = await routing.getRoute(_pickup!.latLng, _dropoff!.latLng);
+    if (!mounted) return;
+    setState(() {
+      _route = result;
+      _fetchingRoute = false;
+    });
+  }
+
+  FareRange? get _fareRange {
+    final r = _route;
+    if (r == null) return null;
+    return ref.read(fareCalculatorProvider).estimateRange(
+          distanceKm: r.distanceKm,
+          durationMin: r.durationMin,
+        );
   }
 
   // ── Time picker ──────────────────────────────────────────────────────
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _departureTime,
-    );
+    final picked =
+        await showTimePicker(context: context, initialTime: _departureTime);
     if (picked != null) setState(() => _departureTime = picked);
   }
 
-  // ── Submit to Supabase ───────────────────────────────────────────────
+  // ── Submit ───────────────────────────────────────────────────────────
 
   bool get _canSubmit =>
-      _pickup != null && _dropoff != null && !_submitting;
+      _pickup != null && _dropoff != null && !_submitting && !_fetchingRoute;
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
@@ -71,19 +110,11 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
       _errorMessage = null;
     });
 
-    // Build departure DateTime from today's date + chosen time.
+    // Build departure DateTime from today + chosen time.
     final now = DateTime.now();
     var depart = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      _departureTime.hour,
-      _departureTime.minute,
-    );
-    // If the chosen time is already in the past for today, advance to tomorrow.
-    if (depart.isBefore(now)) {
-      depart = depart.add(const Duration(days: 1));
-    }
+        now.year, now.month, now.day, _departureTime.hour, _departureTime.minute);
+    if (depart.isBefore(now)) depart = depart.add(const Duration(days: 1));
 
     final userId = ref.read(currentUserProvider)?.id;
     if (userId == null) {
@@ -94,8 +125,31 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
       return;
     }
 
+    // Fetch route if we don't have one yet (e.g. ORS wasn't tried).
+    OrsRouteResult? route = _route;
+    if (route == null && _pickup != null && _dropoff != null) {
+      route = await ref
+          .read(routingServiceProvider)
+          .getRoute(_pickup!.latLng, _dropoff!.latLng);
+    }
+
+    // Compute fare estimates from the route (null if ORS unavailable).
+    final calc = ref.read(fareCalculatorProvider);
+    double? soloFare;
+    double? shareFare4;
+    if (route != null) {
+      soloFare = calc.riderFare(
+          distanceKm: route.distanceKm,
+          durationMin: route.durationMin,
+          groupSize: 1);
+      shareFare4 = calc.riderFare(
+          distanceKm: route.distanceKm,
+          durationMin: route.durationMin,
+          groupSize: 4);
+    }
+
     final request = RideRequest(
-      id: '',             // generated by Postgres
+      id: '',
       riderId: userId,
       pickupLatLng: _pickup!.latLng,
       pickupAddress: _pickup!.address,
@@ -104,13 +158,14 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
       departAt: depart,
       windowMin: _flexibilityMinutes,
       status: RideRequestStatus.pending,
+      estimatedSoloFare: soloFare,
+      estimatedShareFare: shareFare4,
       createdAt: DateTime.now(),
     );
 
     try {
       await ref.read(rideRequestRepositoryProvider).insert(request);
       if (!mounted) return;
-      // Navigate to My Rides so the user can see their new request.
       context.go(AppRoutes.myRides);
     } on PostgrestException catch (e) {
       setState(() {
@@ -128,6 +183,7 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final fareRange = _fareRange;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Request a Shared Ride')),
@@ -142,8 +198,14 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
                 child: MapPicker(
                   pickupLocation: _pickup,
                   dropoffLocation: _dropoff,
-                  onPickup: (r) => setState(() => _pickup = r),
-                  onDropoff: (r) => setState(() => _dropoff = r),
+                  onPickup: (r) {
+                    setState(() => _pickup = r);
+                    _refreshRoute();
+                  },
+                  onDropoff: (r) {
+                    setState(() => _dropoff = r);
+                    _refreshRoute();
+                  },
                 ),
               ),
             ),
@@ -157,8 +219,24 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _SavingsBanner(),
+                    // Fare estimate banner (replaces generic savings banner
+                    // once we have a route).
+                    if (fareRange != null)
+                      _FareBanner(range: fareRange)
+                    else if (_fetchingRoute)
+                      const _RouteLoadingBanner()
+                    else
+                      _SavingsBanner(),
+
                     const SizedBox(height: 12),
+
+                    // Route info chip (distance + duration)
+                    if (_route != null)
+                      _RouteInfoChip(route: _route!)
+                    else
+                      const SizedBox.shrink(),
+
+                    if (_route != null) const SizedBox(height: 8),
 
                     // Pickup field
                     _LocationField(
@@ -214,15 +292,14 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.onPrimary),
+                                  strokeWidth: 2, color: AppColors.onPrimary),
                             )
                           : const Icon(Icons.search_rounded),
                       label: Text(
                           _submitting ? 'Submitting…' : 'Find Shared Ride'),
                     ),
 
-                    if (!_canSubmit && !_submitting)
+                    if (!_canSubmit && !_submitting && !_fetchingRoute)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(
@@ -244,6 +321,114 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
 }
 
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
+
+/// Shows once the route distance + fare range are known.
+class _FareBanner extends StatelessWidget {
+  const _FareBanner({required this.range});
+  final FareRange range;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, AppColors.primaryDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.savings_rounded,
+              color: AppColors.onPrimary, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Est. shared fare per person',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.onPrimary.withAlpha(200)),
+                ),
+                Text(
+                  range.label,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.onPrimary,
+                      fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  'Range: 4-person (best) to 2-person',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.onPrimary.withAlpha(180),
+                      fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RouteLoadingBanner extends StatelessWidget {
+  const _RouteLoadingBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: AppColors.primary),
+          ),
+          const SizedBox(width: 12),
+          Text('Calculating route & fare…',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppColors.onSurfaceMuted)),
+        ],
+      ),
+    );
+  }
+}
+
+class _RouteInfoChip extends StatelessWidget {
+  const _RouteInfoChip({required this.route});
+  final OrsRouteResult route;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.straighten_rounded,
+            size: 14, color: AppColors.onSurfaceMuted),
+        const SizedBox(width: 4),
+        Text(
+          '${route.distanceKm.toStringAsFixed(1)} km  ·  '
+          '${route.durationMin.toStringAsFixed(0)} min',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: AppColors.onSurfaceMuted),
+        ),
+      ],
+    );
+  }
+}
 
 class _SavingsBanner extends StatelessWidget {
   @override
@@ -328,9 +513,8 @@ class _LocationField extends StatelessWidget {
                       color: value != null
                           ? AppColors.onSurface
                           : AppColors.onSurfaceMuted,
-                      fontWeight: value != null
-                          ? FontWeight.w500
-                          : FontWeight.normal,
+                      fontWeight:
+                          value != null ? FontWeight.w500 : FontWeight.normal,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -394,10 +578,10 @@ class _FlexChips extends StatelessWidget {
             onTap: () => onChanged(m),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               decoration: BoxDecoration(
-                color: selected ? AppColors.primary : AppColors.surfaceVariant,
+                color:
+                    selected ? AppColors.primary : AppColors.surfaceVariant,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(

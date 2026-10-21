@@ -37,6 +37,15 @@ enum RideRequestStatus {
 }
 
 /// Client-side model for a `public.ride_requests` row.
+///
+/// ## Geography columns
+/// PostgREST / Supabase returns `geography(Point)` columns as raw hex EWKB
+/// (e.g. `0101000020E6100000...`), which Dart cannot parse as coordinates.
+///
+/// Migration `004_geo_latlong_columns.sql` adds four GENERATED ALWAYS AS
+/// computed columns: `pickup_lat`, `pickup_lng`, `drop_lat`, `drop_lng`.
+/// All reads use these plain `double` fields; all writes still use the
+/// `pickup_geo` / `drop_geo` geography columns via EWKT.
 class RideRequest {
   const RideRequest({
     required this.id,
@@ -68,15 +77,23 @@ class RideRequest {
 
   /// Deserialise from a Supabase row map.
   ///
-  /// PostGIS `geography(Point)` columns are returned by Supabase as WKT strings:
-  /// `POINT(longitude latitude)` — note longitude comes first.
+  /// Reads `pickup_lat` / `pickup_lng` / `drop_lat` / `drop_lng` —
+  /// generated columns that contain plain `double` values.
+  /// The hex EWKB geography columns (`pickup_geo`, `drop_geo`) are never
+  /// fetched (the SELECT list in [RideRequestRepository] excludes them).
   factory RideRequest.fromJson(Map<String, dynamic> json) {
     return RideRequest(
       id: json['id'] as String,
       riderId: json['rider_id'] as String,
-      pickupLatLng: _parseGeo(json['pickup_geo'] as String),
+      pickupLatLng: LatLng(
+        (json['pickup_lat'] as num).toDouble(),
+        (json['pickup_lng'] as num).toDouble(),
+      ),
       pickupAddress: json['pickup_address'] as String,
-      dropLatLng: _parseGeo(json['drop_geo'] as String),
+      dropLatLng: LatLng(
+        (json['drop_lat'] as num).toDouble(),
+        (json['drop_lng'] as num).toDouble(),
+      ),
       dropAddress: json['drop_address'] as String,
       departAt: DateTime.parse(json['depart_at'] as String).toLocal(),
       windowMin: json['window_min'] as int,
@@ -90,8 +107,9 @@ class RideRequest {
 
   /// Serialise for INSERT.
   ///
-  /// `pickup_geo` and `drop_geo` are sent as WKT so PostGIS parses them:
-  /// `SRID=4326;POINT(longitude latitude)`.
+  /// Writes to the `geography` columns using EWKT so PostGIS parses them
+  /// server-side: `SRID=4326;POINT(longitude latitude)`.
+  /// The generated lat/lng columns update automatically.
   Map<String, dynamic> toInsertJson() {
     return {
       'rider_id': riderId,
@@ -101,25 +119,14 @@ class RideRequest {
       'drop_address': dropAddress,
       'depart_at': departAt.toUtc().toIso8601String(),
       'window_min': windowMin,
-      // Fare estimates will be filled in Step 6 once ORS distance is known.
+      if (estimatedSoloFare != null)
+        'estimated_solo_fare': estimatedSoloFare,
+      if (estimatedShareFare != null)
+        'estimated_share_fare': estimatedShareFare,
     };
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────
-
-  /// Parses `POINT(lng lat)` WKT (PostGIS default output format).
-  static LatLng _parseGeo(String wkt) {
-    // e.g. "POINT(90.4125 23.8103)"
-    final inner = wkt
-        .replaceAll('POINT(', '')
-        .replaceAll('POINT (', '')
-        .replaceAll(')', '')
-        .trim();
-    final parts = inner.split(' ');
-    final lng = double.parse(parts[0]);
-    final lat = double.parse(parts[1]);
-    return LatLng(lat, lng);
-  }
+  // ── Helper ───────────────────────────────────────────────────────────
 
   /// Converts LatLng to EWKT (longitude first — PostGIS convention).
   static String _toWkt(LatLng p) =>
