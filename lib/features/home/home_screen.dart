@@ -1,25 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sharegari/core/router/app_router.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/features/auth/data/auth_repository.dart';
+import 'package:sharegari/features/auth/providers/auth_providers.dart';
 
 /// Home / dashboard screen for riders.
-class HomeScreen extends StatelessWidget {
+///
+/// Now a [ConsumerWidget] so it can read auth state and trigger sign-out.
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tt = theme.textTheme;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tt = Theme.of(context).textTheme;
+    final user = ref.watch(currentUserProvider);
+    final displayName = user?.userMetadata?['name'] as String? ??
+        user?.email?.split('@').first ??
+        'there';
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('ShareGari'),
         actions: [
+          // Sign-out button
           IconButton(
-            icon: const Icon(Icons.account_circle_rounded),
-            onPressed: () {},
-            tooltip: 'Profile',
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: 'Sign out',
+            onPressed: () async {
+              await ref.read(authRepositoryProvider).signOut();
+              if (context.mounted) context.go(AppRoutes.login);
+            },
           ),
         ],
       ),
@@ -30,7 +42,7 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Greeting
-              Text('Good morning 👋', style: tt.bodySmall),
+              Text('Hello, $displayName 👋', style: tt.bodySmall),
               const SizedBox(height: 4),
               Text('Where are you going?', style: tt.headlineSmall),
               const SizedBox(height: 24),
@@ -61,7 +73,6 @@ class HomeScreen extends StatelessWidget {
         currentIndex: 0,
         onTap: (i) {
           if (i == 1) context.push(AppRoutes.myRides);
-          if (i == 2) context.push(AppRoutes.login);
         },
         items: const [
           BottomNavigationBarItem(
@@ -71,10 +82,6 @@ class HomeScreen extends StatelessWidget {
           BottomNavigationBarItem(
             icon: Icon(Icons.directions_car_rounded),
             label: 'My Rides',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
-            label: 'Profile',
           ),
         ],
       ),
