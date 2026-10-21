@@ -39,19 +39,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _errorMessage = null;
     });
 
-    final result = await ref.read(authRepositoryProvider).signInWithEmail(
-          email: _emailCtrl.text.trim(),
-          password: _passwordCtrl.text,
-        );
+    try {
+      // 15-second timeout — avoids loading forever on network issues.
+      final result = await ref
+          .read(authRepositoryProvider)
+          .signInWithEmail(
+            email: _emailCtrl.text.trim(),
+            password: _passwordCtrl.text,
+          )
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => const AuthResult.failure(
+              'Sign-in timed out. Check your internet connection and try again.',
+            ),
+          );
 
-    if (!mounted) return;
+      // Log outcome for debugging.
+      debugPrint('[Auth] signInWithEmail → '
+          '${result.isSuccess ? "OK uid=${result.user?.id}" : "FAIL: ${result.error}"}');
 
-    if (result.isSuccess) {
-      context.go(AppRoutes.home);
-    } else {
+      if (!mounted) return;
+
+      if (result.isSuccess) {
+        // Do NOT call context.go() here.
+        // The GoRouter's refreshListenable is connected to authUserProvider
+        // (a StreamProvider). When Supabase emits SIGNED_IN, authUserProvider
+        // emits a non-null User, the notifier fires, and GoRouter's redirect
+        // automatically sends the user to AppRoutes.home.
+        //
+        // Calling context.go() manually races with that redirect and can
+        // cause double-navigation or override the redirect while isLoading
+        // is still true (the old Android bug).
+        //
+        // We just clear the loading spinner here; navigation is handled
+        // by the router.
+        setState(() => _loading = false);
+      } else {
+        setState(() {
+          _loading = false;
+          _errorMessage = result.error;
+        });
+      }
+    } catch (e, st) {
+      debugPrint('[Auth] Unexpected error: $e\n$st');
+      if (!mounted) return;
       setState(() {
         _loading = false;
-        _errorMessage = result.error;
+        _errorMessage = 'Unexpected error: $e';
       });
     }
   }
@@ -137,7 +171,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Sign-in
+                  // Sign-in button
                   ElevatedButton(
                     onPressed: _loading ? null : _submit,
                     child: _loading

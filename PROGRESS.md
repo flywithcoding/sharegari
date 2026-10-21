@@ -241,15 +241,128 @@ If it's available, uncomment the `cron.schedule` block at the bottom of `007_mat
 
 ---
 
-## ⏭️ Step 8 — Realtime Group Status Screen (NEXT)
+## ✅ Step 8 — Realtime Group Status Screen (DONE)
 
-**What to do manually before Step 8:**
-1. Run `supabase db push` to apply all pending migrations (003 → 007).
-2. Seed and verify: run `seed_test_requests.sql`, then `verify_matching.sql` in the Supabase SQL editor.
-3. Confirm `run_matching()` returns `{ groups_formed: 3, riders_matched: 8, riders_expired: 0 }`.
-4. Commit: `git add . && git commit -m "Step 7 done — matching engine"`
+**Date:** 2026-10-21
+
+### What was done
+
+#### SQL migration: `supabase/migrations/010_rider_status_screen.sql`
+
+| Change | Detail |
+|--------|--------|
+| Enum: `group_status` | Added `'driver_assigned'` (between `pending_driver` and `confirmed`) |
+| View: `my_group_co_riders` | `security_invoker = true` — first-name-only co-rider data, RLS-scoped to current user's groups |
+| Function: `cancel_ride_request(uuid)` | Smart cancel: free while searching; cascades to dissolve group if < 2 riders remain, requeues the rest to `'searching'` |
+
+#### Flutter files created
+
+| File | Purpose |
+|------|---------|
+| `lib/features/ride_status/data/ride_status_models.dart` | `GroupStatus` enum, `CoRider`, `DriverDetail`, `GroupDetail` models |
+| `lib/features/ride_status/data/ride_status_repository.dart` | Queries + Realtime streams for request/group status; calls `cancel_ride_request` RPC |
+| `lib/features/ride_status/providers/ride_status_providers.dart` | `requestStatusStreamProvider`, `groupDetailProvider`, `groupStatusStreamProvider` (all family) |
+| `lib/features/ride_status/ride_status_screen.dart` | Full status screen — 4 state views (searching, group formed, expired, cancelled) |
+
+#### Flutter files modified
+
+| File | Change |
+|------|--------|
+| `lib/core/router/app_router.dart` | Added `/ride-status/:requestId` route with extra params |
+| `lib/features/ride_request/ride_request_screen.dart` | Post-submit navigates to status screen (instead of My Rides) |
+| `lib/features/my_rides/my_rides_screen.dart` | Ride cards are tappable → open status screen; added chevron indicator |
+
+#### Test / helper files
+
+| File | Purpose |
+|------|---------|
+| `supabase/test_status_flow.sql` | Commented SQL to manually advance a group through all statuses (pending_driver → driver_assigned → confirmed → in_progress → completed) |
+
+#### Screen states
+
+| Status | What the rider sees |
+|--------|-------------------|
+| `searching` / `pending` | Pulsing "Finding riders" animation, trip details, fare range, Cancel button |
+| `matched` + group found | Group count, my locked fare, departure time, co-rider first names + pickup order, Cancel with fee warning |
+| `driver_assigned` / `confirmed` | + driver first name, car model, plate, rating |
+| `expired` | "No match found" + "Try a different time" + "Back to My Rides" buttons |
+| `cancelled` | "Ride cancelled" + "Book a new ride" |
+
+#### Cancel logic
+
+- **While searching**: direct `cancel_ride_request()` call, no fee, no confirmation needed beyond dialog.
+- **After group formed**: confirmation dialog with fee warning (no charging in MVP); SQL function dissolves group if < 2 riders remain and requeues survivors to `'searching'`.
+
+#### Realtime
+
+- `requestStatusStreamProvider` streams `ride_requests.status` live.
+- `groupStatusStreamProvider` streams `ride_groups.status` live.
+- Both auto-unsubscribe when the provider is disposed (screen closes).
+- Group detail re-fetched (`ref.invalidate`) whenever the group status stream emits a changed value.
+
+#### `flutter analyze lib` → **No issues**
 
 ---
+
+## ✅ Bug fix — Android login stuck in loading state (DONE)
+
+**Date:** 2026-10-21
+
+### Root cause
+
+`currentUserProvider` was a plain `Provider<User?>` that called `_client.auth.currentUser` synchronously. GoRouter's `redirect` read this value but it never updated reactively after sign-in. On Android, `signInWithPassword` succeeds asynchronously; the login screen called `context.go(AppRoutes.home)` manually, but the router's `redirect` still saw `isLoading = true` (the StreamProvider hadn't emitted yet) and overrode the navigation with `null`. Result: loading spinner forever.
+
+### Fixes
+
+| File | Change |
+|------|--------|
+| `lib/features/auth/providers/auth_providers.dart` | Added `authUserProvider` — a `StreamProvider<User?>` mapping `onAuthStateChange` to `User?`. This is reactive; the router re-evaluates redirect on every emission. Kept `currentUserProvider` as a derived `Provider<User?>` from it (backward compat for other screens). |
+| `lib/core/router/app_router.dart` | Router's `refreshListenable` and `redirect` now use `authUserProvider` instead of `currentUserProvider`. The redirect fires correctly after sign-in on Android. |
+| `lib/features/auth/login_screen.dart` | (1) Removed `context.go()` after success — router redirect handles navigation. (2) `_loading` cleared in both success and error branches. (3) 15-second timeout on `signInWithEmail`. (4) `debugPrint` logs auth outcome and unexpected errors. |
+
+- `flutter analyze lib` → **No issues**
+
+---
+
+## ✅ Bug fix — Release APK stuck on splash (R8 minification) (DONE)
+
+**Date:** 2026-10-21
+
+### Root cause
+
+R8 (the release minifier) was enabled by default for the release build type. It renamed / removed methods accessed via reflection inside `shared_preferences_android`, producing:
+
+```
+NoSuchMethodError: no non-static method
+  SharedPreferencesApiRegistrar.getAll
+```
+
+This caused the app to crash at plugin registration time, before Flutter could render any UI — appearing as a frozen splash screen.
+
+### Fix
+
+| File | Change |
+|------|--------|
+| `android/app/build.gradle.kts` | Added `isMinifyEnabled = false` and `isShrinkResources = false` to the `release` build type. Also wired in `proguardFiles` for future use. |
+| `android/app/proguard-rules.pro` | Created with keep rules for `io.flutter.plugins.**`, `io.flutter.embedding.**`, `shared_preferences`, Supabase/OkHttp, and general annotation attributes. Currently inactive (minification is off) but provides a safe starting point if minification is re-enabled later. |
+
+### To rebuild the release APK after this fix
+```powershell
+flutter clean
+flutter build apk --release
+# or for app bundle:
+flutter build appbundle --release
+```
+
+---
+
+## ⏭️ Step 9 — Driver Mode Screens (NEXT)
+
+**What to do manually before Step 9:**
+1. Run `supabase db push` to apply migrations 006–010.
+2. Run `supabase/test_status_flow.sql` in the SQL editor: find a group_id from step 1's output, replace `'YOUR-GROUP-ID-HERE'`, and run each UPDATE to watch the screen update live.
+3. Commit: `git add . && git commit -m "Step 8 done + auth fix + R8 fix"`
+
 
 ## Upcoming steps (reference)
 
@@ -262,8 +375,8 @@ If it's available, uncomment the `cron.schedule` block at the bottom of `007_mat
 | 5 | Ride request to Supabase, My Rides list | Done |
 | 6 | Fare calculation (ORS distance), unit tests + geo/realtime fixes | Done |
 | 7 | Matching engine (PostGIS SQL function) | Done |
-| 8 | Realtime group status screen | **Next** |
-| 9 | Driver mode screens | - |
+| 8 | Realtime group status screen | Done |
+| 9 | Driver mode screens | **Next** |
 | 10 | Live tracking + ORS route distance in matching | - |
 | 11 | Push notifications (FCM) | - |
 | 12 | Payments (cash + bKash/Nagad) | - |

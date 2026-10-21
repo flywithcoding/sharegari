@@ -164,9 +164,19 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
     );
 
     try {
-      await ref.read(rideRequestRepositoryProvider).insert(request);
+      final created =
+          await ref.read(rideRequestRepositoryProvider).insert(request);
       if (!mounted) return;
-      context.go(AppRoutes.myRides);
+      context.push(
+        AppRoutes.rideStatusPath(created.id),
+        extra: <String, dynamic>{
+          'pickupAddress':      _pickup!.address,
+          'dropAddress':        _dropoff!.address,
+          'estimatedSoloFare':  soloFare,
+          'estimatedShareFare': shareFare4,
+          'departAt':           depart.toUtc().toIso8601String(),
+        },
+      );
     } on PostgrestException catch (e) {
       setState(() {
         _submitting = false;

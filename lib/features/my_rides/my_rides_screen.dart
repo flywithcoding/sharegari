@@ -124,10 +124,25 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                       itemCount: rides.length,
                       separatorBuilder: (_, i) =>
                           const SizedBox(height: 10),
-                      itemBuilder: (_, i) => _RideCard(
-                        ride: rides[i],
-                        onCancel: () => _cancelRide(rides[i]),
-                      ),
+                      itemBuilder: (_, i) {
+                        final ride = rides[i];
+                        return GestureDetector(
+                          onTap: () => context.push(
+                            AppRoutes.rideStatusPath(ride.id),
+                            extra: <String, dynamic>{
+                              'pickupAddress':     ride.pickupAddress,
+                              'dropAddress':       ride.dropAddress,
+                              'estimatedSoloFare': ride.estimatedSoloFare,
+                              'estimatedShareFare':ride.estimatedShareFare,
+                              'departAt':          ride.departAt.toUtc().toIso8601String(),
+                            },
+                          ),
+                          child: _RideCard(
+                            ride: ride,
+                            onCancel: () => _cancelRide(ride),
+                          ),
+                        );
+                      },
                     ),
                   );
                 },
@@ -207,7 +222,7 @@ class _RideCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Status badge + date row
+          // Status badge + date + chevron row
           Row(
             children: [
               _StatusBadge(status: ride.status),
@@ -215,6 +230,9 @@ class _RideCard extends StatelessWidget {
               Text(dateStr,
                   style: tt.bodySmall
                       ?.copyWith(color: AppColors.onSurfaceMuted)),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 16, color: AppColors.onSurfaceMuted),
             ],
           ),
           const SizedBox(height: 12),

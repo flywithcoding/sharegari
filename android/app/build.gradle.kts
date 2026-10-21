@@ -30,6 +30,24 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // ── R8 / ProGuard ────────────────────────────────────────────────
+            // Minification is disabled because R8 breaks Flutter plugin
+            // reflection-based registration at runtime, causing crashes such as:
+            //   NoSuchMethodError: no non-static method
+            //     SharedPreferencesApiRegistrar.getAll
+            //
+            // Re-enable only after verifying that all Flutter plugins have
+            // compatible consumer ProGuard rules, or after migrating to the
+            // new Pigeon-based plugin APIs.
+            isMinifyEnabled = false
+            isShrinkResources = false
+
+            // proguardFiles kept as reference for when minification is re-enabled.
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
