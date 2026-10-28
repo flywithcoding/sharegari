@@ -751,6 +751,50 @@ Update `run_matching()` in a new migration so:
 
 ---
 
+## ✅ Feature — Open Groups for Pre-booking & Dynamic Price Drops (DONE)
+
+**Date:** 2026-10-29
+
+### Requirement
+1. In a new migration: add open groups for pre-booking. A new group starts as `'open'`.
+2. Each `run_matching()` adds compatible `'searching'` requests to open groups with fewer than 4 riders, as long as distance limits still hold for existing members.
+3. Recalculate per-rider fare (`car_fare / riders`, rounded up to nearest 5 taka) as `current_fare`, which can only go down.
+4. Add config `group_cutoff_minutes` (default 120): at `depart_at` minus the cutoff, set open groups to `'pending_driver'` and lock the fare; a group left with 1 rider becomes `'cancelled'` and the request becomes `'expired'`.
+5. Replace the 15-minute expiry with the cutoff.
+6. Rider screens show `"Group open: X of 4 riders, current price ৳Y, may drop as riders join. Confirmed at <time>"` live via Realtime.
+7. Add test SQL proving a third rider joins later and the price drops.
+8. Don't modify `env.json`.
+
+### What was done
+
+#### SQL migration: `supabase/migrations/012_open_groups_prebooking.sql`
+- **Enum**: Added `'open'` to `group_status` enum before `'pending_driver'`.
+- **Schema**:
+  - Added `group_cutoff_minutes int not null default 120` to `public.pricing_config`.
+  - Added `cutoff_at timestamptz` and `current_fare numeric(10,2)` to `public.ride_groups`.
+- **Function `run_matching()`**:
+  - **Cutoff transition**: Open groups reaching `depart_at - cutoff` transition to `'pending_driver'` (if $\ge 2$ riders) with locked fare; groups with $< 2$ riders become `'cancelled'` and member requests `'expired'`.
+  - **Cutoff expiry**: Unmatched `'searching'` requests expire at `depart_at - cutoff`.
+  - **Adding to open groups**: Finds open groups ($< 4$ riders, before cutoff) and adds compatible candidates where pickup & drop-off distance limits hold for **all** existing members.
+  - **Price drop**: Recalculates `current_fare = ceil(car_fare / n * (1 + fee) / 5) * 5` and sets each member's fare to `least(fare, per_rider_fare)` ("can only go down").
+  - **New groups start as `'open'`**: When 2–4 compatible riders match, group is created with `status = 'open'` and `current_fare = per_rider_fare`.
+  - Concurrency protected with `FOR UPDATE SKIP LOCKED`.
+
+#### Test script: `supabase/test_open_group_flow.sql`
+- Complete lifecycle test proving:
+  - **Run 1**: Riders 1 & 2 match → group starts as `'open'` (2 riders, initial price ৳110).
+  - **Run 2**: Rider 3 requests same route later → joins existing open group → rider count becomes 3 and fare drops for all members (e.g. ৳75).
+  - **Run 3**: Cutoff reached (`depart_at - 120 min <= now()`) → group transitions to `'pending_driver'`, fare locked.
+
+#### Flutter Rider Status Screen:
+- Updated `lib/features/ride_status/data/ride_status_models.dart`: Added `GroupStatus.open`, `GroupDetail.currentFare`, `GroupDetail.cutoffAt`, and `displayFare`.
+- Updated `lib/features/ride_status/data/ride_status_repository.dart` & `providers/ride_status_providers.dart`: Added `watchGroup` Realtime stream on `ride_groups` to capture price drops and member updates live.
+- Updated `lib/features/ride_status/ride_status_screen.dart`:
+  - Displays `"Group open: X of 4 riders, current price ৳Y, may drop as riders join. Confirmed at <time>"` with live Realtime updates.
+  - Displays `Current price (may drop)` when open and confirmed cutoff time.
+
+---
+
 ## ⏭️ Step 9 — Driver Mode Screens (NEXT)
 
 **What to do manually before Step 9:**

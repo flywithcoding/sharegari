@@ -33,3 +33,11 @@ final groupStatusStreamProvider =
     StreamProvider.family<String, String>((ref, groupId) {
   return ref.watch(rideStatusRepositoryProvider).watchGroupStatus(groupId);
 });
+
+// ── Full group row stream (for price drops & member changes) ────────────────
+
+/// Family provider: streams the full `ride_groups` row for Realtime updates.
+final groupStreamProvider =
+    StreamProvider.family<Map<String, dynamic>, String>((ref, groupId) {
+  return ref.watch(rideStatusRepositoryProvider).watchGroup(groupId);
+});

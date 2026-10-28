@@ -326,14 +326,25 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
           return _loadingBody();
         }
 
-        // When the group status changes, refresh the whole group detail
-        final groupStatusAsync =
-            ref.watch(groupStatusStreamProvider(group.groupId));
-        groupStatusAsync.whenData((gs) {
-          if (group.status != GroupStatus.fromString(gs)) {
-            ref.invalidate(groupDetailProvider(widget.requestId));
+        // When the group status or row (fare/members) changes, refresh the group detail
+        final groupStreamAsync =
+            ref.watch(groupStreamProvider(group.groupId));
+        groupStreamAsync.whenData((row) {
+          if (row.isNotEmpty) {
+            final newStatus = row['status'] as String?;
+            final newFareTotal = (row['fare_total'] as num?)?.toDouble();
+            final newCurrentFare = (row['current_fare'] as num?)?.toDouble();
+            if (group.status != GroupStatus.fromString(newStatus ?? '') ||
+                group.fareTotal != newFareTotal ||
+                group.currentFare != newCurrentFare) {
+              ref.invalidate(groupDetailProvider(widget.requestId));
+            }
           }
         });
+
+        final cutoff = group.cutoffAt ??
+            group.departAt.subtract(const Duration(minutes: 120));
+        final cutoffTimeStr = DateFormat('h:mm a').format(cutoff);
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -357,15 +368,50 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
                 ]),
               ),
 
+              // ── Open group banner (live Realtime) ─────────────────────
+              if (group.status == GroupStatus.open) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(25),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.primary.withAlpha(80)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.people_outline_rounded,
+                          color: AppColors.primary, size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Group open: ${group.riderCount} of 4 riders, current price ৳${group.displayFare.toStringAsFixed(0)}, may drop as riders join. Confirmed at $cutoffTimeStr',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                height: 1.35,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // ── My fare ───────────────────────────────────────────────
               _SectionCard(children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Your locked fare',
-                        style: Theme.of(context).textTheme.bodySmall),
                     Text(
-                      '৳${group.myFare.toStringAsFixed(0)}',
+                      group.status == GroupStatus.open
+                          ? 'Current price (may drop)'
+                          : 'Your locked fare',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    Text(
+                      '৳${group.displayFare.toStringAsFixed(0)}',
                       style: Theme.of(context)
                           .textTheme
                           .displaySmall
@@ -385,6 +431,23 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
                     ),
                   ],
                 ),
+                if (group.status == GroupStatus.open) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Confirmed at',
+                          style: Theme.of(context).textTheme.bodySmall),
+                      Text(
+                        cutoffTimeStr,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  ),
+                ],
               ]),
 
               const SizedBox(height: 16),
@@ -484,6 +547,7 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
   }
 
   Color _groupColor(GroupStatus s) => switch (s) {
+        GroupStatus.open           => AppColors.primary,
         GroupStatus.forming        => AppColors.primary,
         GroupStatus.pendingDriver  => AppColors.primary,
         GroupStatus.driverAssigned => AppColors.secondary,
@@ -630,6 +694,7 @@ class _StatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color) = switch (status) {
+      GroupStatus.open           => (Icons.group_add_rounded, AppColors.primary),
       GroupStatus.forming        => (Icons.people_rounded, AppColors.primary),
       GroupStatus.pendingDriver  => (Icons.directions_car_rounded, AppColors.primary),
       GroupStatus.driverAssigned => (Icons.directions_car_rounded, AppColors.secondary),

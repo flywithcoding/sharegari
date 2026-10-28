@@ -12,8 +12,9 @@ library;
 // ── Group status ────────────────────────────────────────────────────────────
 
 /// Mirrors the `group_status` Postgres enum (including values from all
-/// migrations: 001 + 006 + 010).
+/// migrations: 001 + 006 + 010 + 012).
 enum GroupStatus {
+  open,
   forming,
   pendingDriver,
   driverAssigned,
@@ -23,6 +24,7 @@ enum GroupStatus {
   cancelled;
 
   static GroupStatus fromString(String v) => switch (v) {
+        'open'            => open,
         'forming'         => forming,
         'pending_driver'  => pendingDriver,
         'driver_assigned' => driverAssigned,
@@ -34,6 +36,7 @@ enum GroupStatus {
       };
 
   String get label => switch (this) {
+        open            => 'Group open',
         forming         => 'Finding riders',
         pendingDriver   => 'Finding driver',
         driverAssigned  => 'Driver assigned',
@@ -111,6 +114,8 @@ class GroupDetail {
     required this.myPickupOrder,
     required this.coRiders,
     this.driver,
+    this.cutoffAt,
+    this.currentFare,
   });
 
   final String groupId;
@@ -124,6 +129,13 @@ class GroupDetail {
   final List<CoRider> coRiders;
   /// Null until a driver is assigned.
   final DriverDetail? driver;
+  /// Cutoff timestamp when open group locks fare and transitions to pending_driver.
+  final DateTime? cutoffAt;
+  /// Current per-rider price for open groups (can drop as riders join).
+  final double? currentFare;
+
+  /// Effective price to display to rider (current_fare if open, else myFare).
+  double get displayFare => currentFare ?? myFare;
 
   /// Total rider count = coRiders + 1 (self).
   int get riderCount => coRiders.length + 1;

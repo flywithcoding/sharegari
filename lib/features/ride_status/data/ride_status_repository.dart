@@ -45,7 +45,7 @@ class RideStatusRepository {
     // 2. Fetch the group row
     final groupRow = await _client
         .from('ride_groups')
-        .select('id, status, depart_at, fare_total, driver_id')
+        .select('id, status, depart_at, fare_total, driver_id, cutoff_at, current_fare')
         .eq('id', groupId)
         .single();
 
@@ -53,6 +53,10 @@ class RideStatusRepository {
     final departAt    = DateTime.parse(groupRow['depart_at'] as String).toLocal();
     final fareTotal   = (groupRow['fare_total'] as num?)?.toDouble() ?? 0.0;
     final driverId    = groupRow['driver_id'] as String?;
+    final cutoffAt    = groupRow['cutoff_at'] != null
+        ? DateTime.parse(groupRow['cutoff_at'] as String).toLocal()
+        : null;
+    final currentFare = (groupRow['current_fare'] as num?)?.toDouble();
 
     // 3. Fetch co-riders (first name only via the view)
     final coRiderRows = await _client
@@ -96,6 +100,8 @@ class RideStatusRepository {
       myPickupOrder: myPickup,
       coRiders:      coRiders,
       driver:        driver,
+      cutoffAt:      cutoffAt,
+      currentFare:   currentFare,
     );
   }
 
@@ -122,6 +128,18 @@ class RideStatusRepository {
         .map<String>((rows) {
           if (rows.isEmpty) return 'pending_driver';
           return rows.first['status'] as String? ?? 'pending_driver';
+        });
+  }
+
+  /// Emits the group row whenever any column changes (price drop, status, etc.).
+  Stream<Map<String, dynamic>> watchGroup(String groupId) {
+    return _client
+        .from('ride_groups')
+        .stream(primaryKey: ['id'])
+        .eq('id', groupId)
+        .map<Map<String, dynamic>>((rows) {
+          if (rows.isEmpty) return <String, dynamic>{};
+          return rows.first;
         });
   }
 
