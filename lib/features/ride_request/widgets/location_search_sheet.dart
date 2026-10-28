@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sharegari/core/location/barikoi_geocoding_service.dart';
 import 'package:sharegari/core/location/geocoding_provider.dart';
 import 'package:sharegari/core/location/location_model.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
@@ -9,6 +10,13 @@ import 'package:sharegari/core/theme/app_theme.dart';
 ///
 /// Shows a search field at the top and a list of [LocationResult] below.
 /// Tap a result to return it to the caller via [Navigator.pop].
+///
+/// UX:
+///   • 3-character minimum before the first search fires.
+///   • 400 ms debounce — no HTTP call is made on every keystroke.
+///   • Loading spinner while the request is in-flight.
+///   • "No results" message when the service returns an empty list.
+///   • Visible error banner (with HTTP status when available) on failure.
 ///
 /// Usage:
 /// ```dart
@@ -51,7 +59,18 @@ class _LocationSearchSheetState
 
   List<LocationResult> _results = [];
   bool _loading = false;
+
+  /// Non-null when the last search failed (network error or non-200 HTTP).
+  String? _error;
+
+  /// The last query that was actually sent to the geocoder.
   String _lastQuery = '';
+
+  /// Minimum characters required before a search is fired.
+  static const _minChars = 3;
+
+  /// Debounce delay — avoids firing on every keystroke.
+  static const _debounceMs = 400;
 
   @override
   void dispose() {
@@ -62,29 +81,65 @@ class _LocationSearchSheetState
 
   void _onChanged(String query) {
     _debounce?.cancel();
-    if (query.trim().length < 2) {
-      setState(() => _results = []);
+
+    if (query.trim().length < _minChars) {
+      // Clear results and any lingering error when the user clears the field.
+      if (_results.isNotEmpty || _error != null) {
+        setState(() {
+          _results = [];
+          _error = null;
+        });
+      }
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 400), () => _search(query));
+
+    _debounce = Timer(
+      const Duration(milliseconds: _debounceMs),
+      () => _search(query),
+    );
   }
 
   Future<void> _search(String query) async {
+    // Skip identical repeated queries (e.g. focus-in/focus-out).
     if (query == _lastQuery) return;
     _lastQuery = query;
-    setState(() => _loading = true);
-    final results =
-        await ref.read(geocodingServiceProvider).search(query);
-    if (!mounted) return;
+
     setState(() {
-      _results = results;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+
+    try {
+      final results =
+          await ref.read(geocodingServiceProvider).search(query);
+      if (!mounted) return;
+      setState(() {
+        _results = results;
+        _loading = false;
+      });
+    } on GeocodingException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _results = [];
+        _loading = false;
+        _error = e.statusCode != null
+            ? 'Search failed (HTTP ${e.statusCode}). Check your connection.'
+            : 'Search failed: ${e.message}';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _results = [];
+        _loading = false;
+        _error = 'Unexpected error: $e';
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final typedLen = _ctrl.text.trim().length;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
@@ -94,7 +149,7 @@ class _LocationSearchSheetState
       builder: (ctx, scrollCtrl) {
         return Column(
           children: [
-            // Handle bar
+            // ── Handle bar ─────────────────────────────────────────────────
             const SizedBox(height: 10),
             Container(
               width: 36,
@@ -106,7 +161,7 @@ class _LocationSearchSheetState
             ),
             const SizedBox(height: 14),
 
-            // Search field
+            // ── Search field ───────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
@@ -122,7 +177,11 @@ class _LocationSearchSheetState
                           icon: const Icon(Icons.clear_rounded),
                           onPressed: () {
                             _ctrl.clear();
-                            setState(() => _results = []);
+                            setState(() {
+                              _results = [];
+                              _error = null;
+                              _lastQuery = '';
+                            });
                           },
                         )
                       : null,
@@ -131,18 +190,51 @@ class _LocationSearchSheetState
             ),
             const SizedBox(height: 8),
 
-            // Loading / results
+            // ── Body: loading / error / results / prompt ───────────────────
             if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: CircularProgressIndicator(color: AppColors.primary),
               )
-            else if (_results.isEmpty && _ctrl.text.length >= 2)
+            else if (_error != null)
+              // Visible error banner with HTTP status code.
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded,
+                        color: Colors.redAccent, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _error!,
+                        style: tt.bodySmall
+                            ?.copyWith(color: Colors.redAccent),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_results.isEmpty && typedLen >= _minChars)
+              // "No results" — only shown once user has typed enough.
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Text('No results found',
-                    style: tt.bodySmall
-                        ?.copyWith(color: AppColors.onSurfaceMuted)),
+                child: Text(
+                  'No results found',
+                  style:
+                      tt.bodySmall?.copyWith(color: AppColors.onSurfaceMuted),
+                ),
+              )
+            else if (_results.isEmpty && typedLen < _minChars && typedLen > 0)
+              // Hint: keep typing.
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Text(
+                  'Type at least $_minChars characters to search',
+                  style:
+                      tt.bodySmall?.copyWith(color: AppColors.onSurfaceMuted),
+                ),
               )
             else
               Expanded(
@@ -155,15 +247,19 @@ class _LocationSearchSheetState
                     return ListTile(
                       leading: const Icon(Icons.place_rounded,
                           color: AppColors.primary, size: 20),
-                      title: Text(r.displayLabel,
-                          style: tt.bodyMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
+                      title: Text(
+                        r.displayLabel,
+                        style: tt.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       subtitle: r.address != r.displayLabel
-                          ? Text(r.address,
+                          ? Text(
+                              r.address,
                               style: tt.bodySmall,
                               maxLines: 1,
-                              overflow: TextOverflow.ellipsis)
+                              overflow: TextOverflow.ellipsis,
+                            )
                           : null,
                       onTap: () => Navigator.pop(context, r),
                     );

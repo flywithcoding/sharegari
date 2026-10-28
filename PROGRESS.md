@@ -390,6 +390,82 @@ Two problems compounded:
 
 ---
 
+## ✅ Bug fix — Barikoi autocomplete returns no results (DONE)
+
+**Date:** 2026-10-28
+
+### Root cause
+
+The `BarikoiGeocodingService.search()` method was written against an assumed response
+shape that didn't match the real Barikoi API response.
+
+**Real response:**
+```json
+{"places":[{"id":null,"longitude":"90.38","latitude":"23.86",
+            "address":"Uttara, Dhaka","uCode":"XUSWI61626"}]}
+```
+
+Problems found:
+
+| Problem | Detail |
+|---------|--------|
+| `name` always empty | Code tried `p['address_bn']` first (absent), then `p['address']` — but assigned it to `name`, not `address`. |
+| `address` always empty | Built from `p['address']`, `p['area']`, `p['city']` — `area`/`city` absent in autocomplete; joined to `''`. |
+| `displayLabel` is `''` | `LocationResult.displayLabel` = `name ?? address` → both empty → blank list tiles. |
+| Silent failures | All errors (network, non-200) swallowed by `catch (_) { return []; }` — no logs, no user feedback. |
+| `id` field used as key | `id` is `null` in the real response; not used for display but bad practice. |
+| Min-chars threshold | `location_search_sheet.dart` triggered searches at 2 characters; spec requires 3. |
+| No debug logging | Raw HTTP response was never printed, making network issues invisible. |
+
+### Fixes applied
+
+#### `lib/core/location/barikoi_geocoding_service.dart`
+
+- **`_placeToResult()` helper**: correctly reads `"address"` as the primary display
+  label; builds a richer joined string only when optional sub-fields exist.
+- **`double.tryParse`** on `latitude`/`longitude` strings (was already done; confirmed safe).
+- **Does not use `"id"`** (null in real responses).
+- **`search()` now throws `GeocodingException`** on non-200 HTTP response (with `statusCode`)
+  and on network errors — instead of returning `[]` silently.
+- **`reverseGeocode()` stays non-throwing** (returns null on failure) — pin can remain
+  unlabelled without blocking the user.
+- **`debugPrint`** logs the raw response body and status code on every call.
+- **`BARIKOI_API_KEY`** is already read via `String.fromEnvironment('BARIKOI_API_KEY')`
+  in `AppEnv` and passed to the service from `geocodingServiceProvider` — no change needed.
+
+#### `lib/features/ride_request/widgets/location_search_sheet.dart`
+
+- **3-character minimum** (`_minChars = 3`): searches only fire when `query.trim().length >= 3`.
+- **400 ms debounce** (`_debounceMs = 400`): unchanged; confirmed present.
+- **`_error` state**: catches `GeocodingException` (and any other exception) and stores
+  a human-readable message including the HTTP status code.
+- **Visible error banner**: shown with a red `Icons.error_outline_rounded` icon and the
+  status code text (e.g. "Search failed (HTTP 401). Check your connection.").
+- **"No results"** message: shown when results list is empty and ≥ 3 chars typed.
+- **"Type at least 3 characters"** hint: shown when 1–2 chars typed.
+- **Loading spinner**: unchanged; confirmed present.
+
+#### `GeocodingException` class (in `barikoi_geocoding_service.dart`)
+
+New lightweight exception class:
+```dart
+class GeocodingException implements Exception {
+  final String message;
+  final int? statusCode; // present on non-200 HTTP responses
+}
+```
+
+### No changes to
+- `env.json` — `BARIKOI_API_KEY` was already present.
+- `core/env.dart` — `AppEnv.barikoiApiKey` already reads via `String.fromEnvironment`.
+- `geocoding_provider.dart` — still passes `AppEnv.barikoiApiKey` to the service.
+- `geocoding_service.dart` — abstract interface unchanged.
+- `nominatim_geocoding_service.dart` — unaffected.
+
+- `flutter analyze lib` → **No issues**
+
+---
+
 ## ⏭️ Step 9 — Driver Mode Screens (NEXT)
 
 **What to do manually before Step 9:**
