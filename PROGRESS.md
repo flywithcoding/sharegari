@@ -466,6 +466,196 @@ class GeocodingException implements Exception {
 
 ---
 
+## ✅ Bug fix — Barikoi search "ClientException: Failed to fetch" (DONE)
+
+**Date:** 2026-10-29
+
+### Root cause
+
+`BarikoiGeocodingService.search()` was calling the wrong host and URL style:
+
+```
+❌ https://barikoi.com/v2/api/search/autocomplete/<key>/json?q=…&country=bangladesh&limit=8
+```
+
+That URL returns a network error (`ClientException: Failed to fetch`) — the host
+`barikoi.com` no longer hosts that endpoint.
+
+The URL confirmed to work in the browser is:
+```
+✅ https://barikoi.xyz/v2/api/search/autocomplete/place?api_key=<key>&q=<text>
+```
+
+`reverseGeocode()` had the same wrong host (`barikoi.com`).
+
+### Additional issue — CORS on Flutter Web
+
+When the app runs in Chrome, the browser enforces CORS. Barikoi does not send
+`Access-Control-Allow-Origin: *` from the `barikoi.xyz` domain, so the request
+would be blocked even with the correct URL.
+
+### Fixes applied
+
+#### `lib/core/location/barikoi_geocoding_service.dart`
+
+- **`search()` — native**: calls `https://barikoi.xyz/v2/api/search/autocomplete/place`
+  with `api_key` and `q` parameters only (no `country`, no `limit`).
+- **`search()` — web (`kIsWeb`)**: routes through the Supabase Edge Function
+  `barikoi-search` at `<SUPABASE_URL>/functions/v1/barikoi-search?q=<text>`.
+  The key is held server-side and never sent to the browser.
+- **`reverseGeocode()`**: calls
+  `https://barikoi.xyz/v2/api/search/reverse/geocode/place?api_key=…&longitude=…&latitude=…`.
+  (Called on all platforms — reverse geocode is non-fatal; pin stays unlabelled
+  if it fails.)
+- Constructor now takes `supabaseUrl` (used only on web to build the Edge Function URL).
+- All other behaviour (parsing, `GeocodingException`, debug logging, `_placeToResult`)
+  unchanged from the previous fix session.
+
+#### `lib/core/location/geocoding_provider.dart`
+
+- Passes `supabaseUrl: AppEnv.supabaseUrl` to `BarikoiGeocodingService`.
+
+#### `supabase/functions/barikoi-search/index.ts` (created in previous session)
+
+- Deno Edge Function: receives `GET ?q=<text>`, forwards to
+  `https://barikoi.xyz/v2/api/search/autocomplete/place?api_key=<server_secret>&q=<text>`.
+- Adds `Access-Control-Allow-Origin: *` so Flutter Web can call it.
+- Returns the raw Barikoi JSON to the client.
+
+### Deploy the Edge Function (manual step required)
+
+```powershell
+# 1. Set the secret in Supabase (once):
+npx -y supabase@latest secrets set BARIKOI_API_KEY=bkoi_edd492c2b9a29e4c9c8d5a85a701b003d13826b6c59bfae6083e4e31159e206a --project-ref jatzmmxupvzzfxlnudyh
+
+# 2. Deploy the function:
+npx -y supabase@latest functions deploy barikoi-search --no-verify-jwt --project-ref jatzmmxupvzzfxlnudyh
+```
+
+> **Note:** The `--no-verify-jwt` flag is required because the search sheet is
+> shown before the user is authenticated (location picking happens during the
+> ride-request flow, which requires login, but this keeps it simple).
+> If you want to require auth, remove the flag and pass the Supabase anon key
+> as the `Authorization: Bearer <anon>` header from the Dart side.
+
+### Test on Android emulator / phone
+
+If you only tested in Chrome, please test on the Android emulator or a real device:
+```powershell
+flutter run --dart-define-from-file=env.json
+```
+The native path does not go through the Edge Function — it calls `barikoi.xyz`
+directly from the device, which does not have CORS restrictions.
+
+### No changes to
+- `env.json` — unchanged.
+- `core/env.dart` — `AppEnv.supabaseUrl` and `AppEnv.barikoiApiKey` already present.
+- `geocoding_service.dart` — abstract interface unchanged.
+- `nominatim_geocoding_service.dart` — unaffected.
+- `location_search_sheet.dart` — 3-char min, 400ms debounce, error banner already correct.
+- `android/app/build.gradle.kts` — `isMinifyEnabled = false` unchanged.
+
+- `flutter analyze lib` → **No issues**
+
+---
+
+## ✅ Bug fix — Barikoi search "HTTP 404" / error message shows URL without key (DONE)
+
+**Date:** 2026-10-29
+
+### Root cause
+
+The previous two fix sessions wrote the correct code to disk but **never committed it**,
+so `git log` showed the old `barikoi.com` version as HEAD. The app was built/run from
+the old committed version and reported HTTP 404 because `barikoi.com/…/<key>/json`
+no longer exists.
+
+Additionally, the error message thrown by `GeocodingException` showed only the status
+code (`"Search failed — HTTP 404"`) without identifying which endpoint failed, making
+debugging harder.
+
+### What changed this session
+
+#### `lib/core/location/barikoi_geocoding_service.dart`
+
+Already correct from the previous session (URL, parsing, `GeocodingException`) — only
+the error message was improved:
+
+- **`search()`**: throws `GeocodingException` with message
+  `"Search failed (HTTP <N>) — <host>/<path>"` — shows the real status code and the
+  URL path (e.g. `barikoi.xyz/v2/api/search/autocomplete/place`) **without** the
+  `api_key` query parameter.
+- **`reverseGeocode()`**: `debugPrint` now includes `"<host>/<path>"` in the same
+  key-stripped format.
+- Both calls compute `uriDisplay = '${uri.host}${uri.path}'` which drops all query
+  parameters (including the key) before logging or surfacing to the UI.
+
+#### No other files changed
+
+The endpoint, parsing, `kIsWeb` branch, Edge Function, and provider were already
+correct on disk from the previous session.
+
+### Commit required
+
+```powershell
+git add lib/core/location/barikoi_geocoding_service.dart \
+        lib/core/location/geocoding_provider.dart \
+        supabase/functions/barikoi-search/index.ts \
+        PROGRESS.md
+git commit -m "Fix Barikoi search: correct endpoint, CORS proxy, error with URL path"
+```
+
+- `flutter analyze lib` → **No issues**
+
+---
+
+## ✅ Bug fix + flow — Ride Request: Barikoi direct, map pin, button gate (DONE)
+
+**Date:** 2026-10-29
+
+### Changes
+
+#### `lib/core/location/barikoi_geocoding_service.dart`
+- **Removed `kIsWeb` / Supabase Edge Function branch** — search now always calls
+  `barikoi.xyz` directly (no proxy).
+- **Removed `supabaseUrl` constructor parameter** — constructor is simply
+  `BarikoiGeocodingService(apiKey)`.
+- All other behaviour unchanged: correct endpoint, `double.tryParse` for
+  lat/lng strings, `"places"` key, error message with URL path and HTTP status,
+  `debugPrint` logging.
+
+#### `lib/core/location/geocoding_provider.dart`
+- Removed `supabaseUrl:` named argument (no longer needed).
+
+#### `lib/features/ride_request/widgets/map_picker.dart`
+- Added optional `mapController` parameter (`MapController?`).
+  - If the parent passes one, `MapPicker` uses it and does **not** dispose it.
+  - If `null`, the widget owns and disposes its own controller (original behaviour).
+
+#### `lib/features/ride_request/ride_request_screen.dart`
+- `_RideRequestScreenState` now owns a `MapController` (`_mapController`),
+  created in `initState()` and disposed in `dispose()`.
+- New `_moveTo(LatLng)` helper calls `_mapController.move(latLng, 15)`.
+- `_searchPickup()` and `_searchDropoff()` call `_moveTo(result.latLng)` after
+  a search result is tapped → map camera animates to the selected place.
+- `MapPicker` receives `mapController: _mapController` so the pin is visible
+  at the new location immediately.
+- Map taps already call `onPickup`/`onDropoff` directly (unchanged).
+
+### Verified behaviours
+| Behaviour | Status |
+|---|---|
+| Type in Pickup/Drop-off → results from Barikoi directly (no Supabase) | ✅ |
+| Tap a result → box shows address, lat/lng stored, map pin moves, list closes | ✅ |
+| Tap map → reverse geocode fills box, pin placed | ✅ |
+| Find Shared Ride disabled until both locations chosen | ✅ (`_canSubmit`) |
+| INSERT saves `pickup_address`/`drop_address` as text | ✅ |
+| INSERT saves `pickup_geo`/`drop_geo` as `SRID=4326;POINT(lng lat)` (longitude first) | ✅ (`_toWkt`) |
+
+- `flutter analyze lib` → **No issues**
+
+---
+
 ## ⏭️ Step 9 — Driver Mode Screens (NEXT)
 
 **What to do manually before Step 9:**

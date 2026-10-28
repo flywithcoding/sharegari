@@ -6,7 +6,8 @@ import 'package:sharegari/core/location/nominatim_geocoding_service.dart';
 
 /// Provides the active [GeocodingService] implementation.
 ///
-/// Uses Barikoi when a key is available, Nominatim otherwise.
+/// Uses [BarikoiGeocodingService] when BARIKOI_API_KEY is available (calls
+/// barikoi.xyz directly — no Supabase proxy), Nominatim otherwise.
 /// Swap implementations here without touching any UI code.
 final geocodingServiceProvider = Provider<GeocodingService>((ref) {
   if (AppEnv.barikoiApiKey.isNotEmpty) {

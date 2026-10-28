@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -37,6 +38,27 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
   OrsRouteResult? _route;
   bool _fetchingRoute = false;
 
+  /// Shared MapController — owned here so we can animate the camera
+  /// to a search result without a map tap.
+  late final MapController _mapController;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  /// Animate the map camera to [latLng] at zoom 15.
+  void _moveTo(LatLng latLng) {
+    _mapController.move(latLng, 15);
+  }
+
   // ── Location helpers ─────────────────────────────────────────────────
 
   Future<void> _searchPickup() async {
@@ -47,6 +69,7 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
     );
     if (result != null) {
       setState(() => _pickup = result);
+      _moveTo(result.latLng);  // pan map to the chosen place
       _refreshRoute();
     }
   }
@@ -59,6 +82,7 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
     );
     if (result != null) {
       setState(() => _dropoff = result);
+      _moveTo(result.latLng);  // pan map to the chosen place
       _refreshRoute();
     }
   }
@@ -206,6 +230,7 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                 child: MapPicker(
+                  mapController: _mapController,
                   pickupLocation: _pickup,
                   dropoffLocation: _dropoff,
                   onPickup: (r) {

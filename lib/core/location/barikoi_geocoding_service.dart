@@ -6,30 +6,33 @@ import 'package:sharegari/core/location/location_model.dart';
 
 /// Geocoding via Barikoi (Bangladesh-focused, free tier).
 ///
-/// API key is injected at compile time via:
-///   --dart-define-from-file=env.json  →  BARIKOI_API_KEY
+/// ## API key
+/// Injected at compile time: `--dart-define-from-file=env.json` → `BARIKOI_API_KEY`.
+/// Read via `String.fromEnvironment('BARIKOI_API_KEY')` (through [AppEnv]).
 ///
-/// Docs: https://docs.barikoi.com
-/// Endpoints used:
-///   • Search  : GET https://barikoi.com/v2/api/search/autocomplete/{key}/json?q=...
-///   • Reverse : GET https://barikoi.com/v2/api/search/reverse/geocode/{key}/json?longitude=...&latitude=...
+/// ## Endpoints (barikoi.xyz)
+///   • Search  : GET https://barikoi.xyz/v2/api/search/autocomplete/place
+///               `?api_key=<key>&q=<text>`
+///   • Reverse : GET https://barikoi.xyz/v2/api/search/reverse/geocode/place
+///               `?api_key=<key>&longitude=<lng>&latitude=<lat>`
 ///
-/// Real autocomplete response shape (2026-10-28):
+/// Both endpoints are called **directly** from the device — no Supabase proxy.
+/// On Android / iOS there are no CORS restrictions.
+/// If you need Flutter Web support in future, add a Supabase Edge Function
+/// (`supabase/functions/barikoi-search/index.ts` is already in the repo).
+///
+/// ## Real autocomplete response shape (2026-10-28)
 /// ```json
 /// {"places":[{"id":null,"longitude":"90.38","latitude":"23.86",
 ///             "address":"Uttara, Dhaka","uCode":"XUSWI61626"}]}
 /// ```
-/// Real reverse-geocode response shape:
-/// ```json
-/// {"status":200,"place":{"id":123,"longitude":"90.38","latitude":"23.86",
-///                         "address":"Uttara, Dhaka","area":"Uttara",...}}
-/// ```
 class BarikoiGeocodingService implements GeocodingService {
+  /// [apiKey] — compile-time BARIKOI_API_KEY via String.fromEnvironment.
   BarikoiGeocodingService(this._apiKey);
 
   final String _apiKey;
 
-  static const _base = 'barikoi.com';
+  static const _barikoiBase = 'barikoi.xyz';
 
   // ── Search ─────────────────────────────────────────────────────────────────
 
@@ -38,24 +41,27 @@ class BarikoiGeocodingService implements GeocodingService {
     if (query.trim().isEmpty) return [];
 
     final uri = Uri.https(
-      _base,
-      '/v2/api/search/autocomplete/$_apiKey/json',
-      {'q': query, 'country': 'bangladesh', 'limit': '8'},
+      _barikoiBase,
+      '/v2/api/search/autocomplete/place',
+      {'api_key': _apiKey, 'q': query},
     );
+
+    // Sanitized path shown in error messages — key is stripped from query params.
+    final uriDisplay = '${uri.host}${uri.path}';
 
     late http.Response res;
     try {
       res = await http.get(uri).timeout(const Duration(seconds: 8));
     } catch (e) {
-      debugPrint('[Barikoi] search network error: $e');
-      throw GeocodingException('Network error: $e');
+      debugPrint('[Barikoi] search network error ($uriDisplay): $e');
+      throw GeocodingException('Network error contacting $uriDisplay: $e');
     }
 
-    debugPrint('[Barikoi] search raw response (${res.statusCode}): ${res.body}');
+    debugPrint('[Barikoi] search $uriDisplay → ${res.statusCode}: ${res.body}');
 
     if (res.statusCode != 200) {
       throw GeocodingException(
-        'Search failed — HTTP ${res.statusCode}',
+        'Search failed (HTTP ${res.statusCode}) — $uriDisplay',
         statusCode: res.statusCode,
       );
     }
@@ -74,27 +80,31 @@ class BarikoiGeocodingService implements GeocodingService {
   @override
   Future<LocationResult?> reverseGeocode(LatLng latLng) async {
     final uri = Uri.https(
-      _base,
-      '/v2/api/search/reverse/geocode/$_apiKey/json',
+      _barikoiBase,
+      '/v2/api/search/reverse/geocode/place',
       {
+        'api_key': _apiKey,
         'longitude': latLng.longitude.toStringAsFixed(6),
         'latitude': latLng.latitude.toStringAsFixed(6),
       },
     );
 
+    final uriDisplay = '${uri.host}${uri.path}';
+
     late http.Response res;
     try {
       res = await http.get(uri).timeout(const Duration(seconds: 8));
     } catch (e) {
-      debugPrint('[Barikoi] reverseGeocode network error: $e');
-      return null; // reverse geocode errors are non-fatal (pin just stays unlabelled)
+      debugPrint('[Barikoi] reverseGeocode network error ($uriDisplay): $e');
+      return null; // non-fatal — pin stays unlabelled
     }
 
     debugPrint(
-        '[Barikoi] reverseGeocode raw response (${res.statusCode}): ${res.body}');
+        '[Barikoi] reverseGeocode $uriDisplay → ${res.statusCode}: ${res.body}');
 
     if (res.statusCode != 200) {
-      debugPrint('[Barikoi] reverseGeocode failed — HTTP ${res.statusCode}');
+      debugPrint(
+          '[Barikoi] reverseGeocode failed — HTTP ${res.statusCode} ($uriDisplay)');
       return null;
     }
 
@@ -111,24 +121,22 @@ class BarikoiGeocodingService implements GeocodingService {
 
   /// Converts a raw Barikoi place map to [LocationResult].
   ///
-  /// The real API response has:
+  /// Real field names:
   ///   • "address"   — full formatted address string (always present)
-  ///   • "latitude"  — string (e.g. "23.86")
-  ///   • "longitude" — string (e.g. "90.38")
-  ///   • "uCode"     — place identifier (not "id" — that may be null)
+  ///   • "latitude"  — string e.g. "23.86" → parsed with double.tryParse
+  ///   • "longitude" — string e.g. "90.38" → parsed with double.tryParse
+  ///   • "uCode"     — place identifier ("id" may be null — ignored)
   ///
-  /// Optional richer fields (may be absent on autocomplete):
-  ///   • "address_bn" — Bangla address
-  ///   • "area", "city", "subarea"
+  /// Optional (may be absent on autocomplete):
+  ///   • "address_bn", "area", "city"
   LocationResult? _placeToResult(
     Map<String, dynamic> p, {
     LatLng? fallbackLatLng,
   }) {
-    // Coordinates — stored as strings in the Barikoi response.
+    // Latitude and longitude come as strings in the Barikoi response.
     final lat = double.tryParse(p['latitude']?.toString() ?? '');
     final lng = double.tryParse(p['longitude']?.toString() ?? '');
 
-    // If lat/lng are missing, use the fallback (provided for reverse-geocode).
     final LatLng latLng;
     if (lat != null && lng != null) {
       latLng = LatLng(lat, lng);
@@ -139,11 +147,10 @@ class BarikoiGeocodingService implements GeocodingService {
       return null;
     }
 
-    // Primary display label — "address" is always present in real responses.
-    // Fall back through progressively simpler labels.
+    // "address" is always present in real responses.
     final address = (p['address'] as String?)?.trim() ?? '';
 
-    // Build a richer full-address string if optional sub-fields exist.
+    // Build a richer label when optional sub-fields exist.
     final parts = [
       p['address'] as String?,
       p['area'] as String?,
@@ -152,7 +159,7 @@ class BarikoiGeocodingService implements GeocodingService {
 
     final fullAddress = parts.isNotEmpty ? parts.join(', ') : address;
 
-    // Prefer Bangla name when available, otherwise use the English address.
+    // Prefer Bangla name when available.
     final name = (p['address_bn'] as String?)?.trim().isNotEmpty == true
         ? (p['address_bn'] as String).trim()
         : null;
@@ -165,16 +172,14 @@ class BarikoiGeocodingService implements GeocodingService {
   }
 }
 
-/// Thrown by [BarikoiGeocodingService.search] when the HTTP request fails.
-///
-/// The UI catches this to show a visible error message with the status code
-/// instead of silently returning an empty list.
+/// Thrown by [BarikoiGeocodingService.search] on HTTP errors or network
+/// failures so the UI can show a visible error instead of an empty list.
 class GeocodingException implements Exception {
   const GeocodingException(this.message, {this.statusCode});
 
   final String message;
 
-  /// HTTP status code, if the error was a non-200 response.
+  /// HTTP status code when the error was a non-200 response.
   final int? statusCode;
 
   @override

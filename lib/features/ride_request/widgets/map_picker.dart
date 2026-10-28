@@ -14,9 +14,14 @@ import 'package:sharegari/core/theme/app_theme.dart';
 ///   [onDropoff] with the resolved [LocationResult].
 /// • Tile provider: MapTiler (free tier) if key is available,
 ///   OpenStreetMap raster tiles otherwise.
+///
+/// Pass an external [mapController] so the parent screen can call
+/// `mapController.move(latLng, zoom)` after a search-result tap
+/// to animate the camera to the chosen location.
 class MapPicker extends ConsumerStatefulWidget {
   const MapPicker({
     super.key,
+    this.mapController,
     this.initialCenter = const LatLng(23.8103, 90.4125), // Dhaka centre
     this.initialZoom = 13.0,
     this.pickupLocation,
@@ -24,6 +29,10 @@ class MapPicker extends ConsumerStatefulWidget {
     required this.onPickup,
     required this.onDropoff,
   });
+
+  /// Optional external controller — allows the parent to pan/zoom the map
+  /// (e.g. after a search result is tapped).
+  final MapController? mapController;
 
   final LatLng initialCenter;
   final double initialZoom;
@@ -47,12 +56,16 @@ class _MapPickerState extends ConsumerState<MapPicker> {
   @override
   void initState() {
     super.initState();
-    _mapController = MapController();
+    // Use the externally provided controller if given, otherwise own one.
+    _mapController = widget.mapController ?? MapController();
   }
 
   @override
   void dispose() {
-    _mapController.dispose();
+    // Only dispose if we created the controller ourselves.
+    if (widget.mapController == null) {
+      _mapController.dispose();
+    }
     super.dispose();
   }
 
@@ -133,7 +146,7 @@ class _MapPickerState extends ConsumerState<MapPicker> {
                     AppColors.secondary,
                   ),
                 ]),
-              // Route line when both are set
+              // Straight dotted line between pins when both are set
               if (pickup != null && dropoff != null)
                 PolylineLayer(polylines: [
                   Polyline(
