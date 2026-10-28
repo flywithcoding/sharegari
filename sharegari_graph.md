@@ -35,7 +35,7 @@ graph TD
     end
 
     subgraph Supabase["Supabase Backend (PostgreSQL + PostGIS)"]
-        DB["PostgreSQL DB\n(10 migrations)"]
+        DB["PostgreSQL DB\n(11 migrations)"]
         RLS["Row Level Security"]
         RT["Realtime\n(Supabase Streams)"]
         MATCH_FN["run_matching()\nSQL Matching Engine"]
@@ -409,6 +409,7 @@ flowchart TD
 | 008 | `008_fix_phone_nullable.sql` | Makes `phone` nullable (optional at signup) |
 | 009 | `009_fix_uuid_generate.sql` | Fixes `uuid_generate_v4()` availability on all Supabase plans |
 | 010 | `010_rider_status_screen.sql` | `my_group_co_riders` view; `cancel_ride_request()` function |
+| 011 | `011_matching_lookahead_and_dates.sql` | `run_matching()` 7-day lookahead, cross-date isolation, 15-min expiry |
 
 ---
 

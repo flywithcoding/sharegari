@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sharegari/core/location/location_model.dart';
 import 'package:sharegari/core/pricing/fare_calculator.dart';
@@ -28,6 +29,8 @@ class RideRequestScreen extends ConsumerStatefulWidget {
 class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
   LocationResult? _pickup;
   LocationResult? _dropoff;
+  /// Selected departure date (local). Default: today.
+  DateTime _departureDate = DateTime.now();
   TimeOfDay _departureTime = TimeOfDay.now();
   int _flexibilityMinutes = 10;
 
@@ -114,7 +117,20 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
         );
   }
 
-  // ── Time picker ──────────────────────────────────────────────────────
+  // ── Date + time pickers ──────────────────────────────────────────────
+
+  Future<void> _pickDate() async {
+    final today = DateTime.now();
+    final last  = today.add(const Duration(days: 7));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _departureDate.isBefore(today) ? today : _departureDate,
+      firstDate: today,
+      lastDate: last,
+      helpText: 'Select departure date',
+    );
+    if (picked != null) setState(() => _departureDate = picked);
+  }
 
   Future<void> _pickTime() async {
     final picked =
@@ -127,6 +143,32 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
   bool get _canSubmit =>
       _pickup != null && _dropoff != null && !_submitting && !_fetchingRoute;
 
+  /// Combines the selected date and time into a local DateTime, then
+  /// validates it is at least 30 minutes from now.
+  ///
+  /// Returns the departure [DateTime] (local) on success, or sets
+  /// [_errorMessage] and returns null.
+  DateTime? _buildAndValidateDepart() {
+    final depart = DateTime(
+      _departureDate.year,
+      _departureDate.month,
+      _departureDate.day,
+      _departureTime.hour,
+      _departureTime.minute,
+    );
+    final minDepart = DateTime.now().add(const Duration(minutes: 30));
+    if (depart.isBefore(minDepart)) {
+      setState(() {
+        _submitting = false;
+        _errorMessage =
+            'Departure must be at least 30 minutes from now. '
+            'Please choose a later date or time.';
+      });
+      return null;
+    }
+    return depart;
+  }
+
   Future<void> _submit() async {
     if (!_canSubmit) return;
     setState(() {
@@ -134,11 +176,9 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
       _errorMessage = null;
     });
 
-    // Build departure DateTime from today + chosen time.
-    final now = DateTime.now();
-    var depart = DateTime(
-        now.year, now.month, now.day, _departureTime.hour, _departureTime.minute);
-    if (depart.isBefore(now)) depart = depart.add(const Duration(days: 1));
+    // Validate the combined date+time — must be ≥ 30 min from now.
+    final depart = _buildAndValidateDepart();
+    if (depart == null) return; // error message already set
 
     final userId = ref.read(currentUserProvider)?.id;
     if (userId == null) {
@@ -295,16 +335,21 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Time + flexibility row
+                    // Date + time + flexibility row
                     Row(
                       children: [
-                        Expanded(
-                          child: _TimePickerTile(
-                            time: _departureTime,
-                            onTap: _pickTime,
-                          ),
+                        // Date tile
+                        _DatePickerTile(
+                          date: _departureDate,
+                          onTap: _pickDate,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
+                        // Time tile
+                        _TimePickerTile(
+                          time: _departureTime,
+                          onTap: _pickTime,
+                        ),
+                        const SizedBox(width: 6),
                         _FlexChips(
                           value: _flexibilityMinutes,
                           onChanged: (v) =>
@@ -587,6 +632,43 @@ class _TimePickerTile extends StatelessWidget {
                 color: AppColors.primary, size: 18),
             const SizedBox(width: 8),
             Text(time.format(context),
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact tile showing the selected departure date.
+/// Tapping it opens the date picker.
+class _DatePickerTile extends StatelessWidget {
+  const _DatePickerTile({required this.date, required this.onTap});
+  final DateTime date;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isToday = DateUtils.isSameDay(date, DateTime.now());
+    final label = isToday
+        ? 'Today'
+        : DateFormat('EEE, d MMM').format(date);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_rounded,
+                color: AppColors.primary, size: 16),
+            const SizedBox(width: 6),
+            Text(label,
                 style: const TextStyle(
                     fontSize: 13, fontWeight: FontWeight.w600)),
           ],

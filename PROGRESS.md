@@ -656,6 +656,101 @@ git commit -m "Fix Barikoi search: correct endpoint, CORS proxy, error with URL 
 
 ---
 
+## ✅ Feature — Date picker on Request Ride screen (DONE)
+
+**Date:** 2026-10-29
+
+### Requirement
+Add a date picker next to the time picker on the Request a Shared Ride screen.
+Block departures in the past or < 30 min from now with a clear message.
+Show date+time on the status screen and in My Rides.
+No DB or matching changes.
+
+### Changes — `lib/features/ride_request/ride_request_screen.dart`
+- Added `import 'package:intl/intl.dart'`.
+- Added `_departureDate` state field (local `DateTime`, default `DateTime.now()`).
+- Added `_pickDate()` — opens `showDatePicker` with:
+  - `firstDate`: today
+  - `lastDate`: today + 7 days
+  - `initialDate`: today if stored date is already past, else stored date
+- Renamed section comment to `// ── Date + time pickers`.
+- Added `_buildAndValidateDepart()`:
+  - Combines `_departureDate` + `_departureTime` into a single local `DateTime`.
+  - Validates it is ≥ 30 minutes from `DateTime.now()`.
+  - On failure: sets `_errorMessage` with a clear explanation and returns `null`.
+- `_submit()` now calls `_buildAndValidateDepart()` instead of the old
+  "add 1 day if in the past" hack.
+- `depart` is saved as `depart.toUtc().toIso8601String()` (unchanged — already UTC).
+- UI row now shows **Date tile | Time tile | Flex chips** side-by-side.
+- Added `_DatePickerTile` widget: calendar icon + "Today" / "EEE, d MMM" label.
+
+### No changes needed to:
+- `ride_status_screen.dart` — already shows departure with
+  `DateFormat('EEE d MMM, h:mm a').format(depart)` in `_searchingBody` and
+  `DateFormat('EEE d MMM, h:mm a').format(group.departAt)` in `_groupBody`.
+- `my_rides_screen.dart` — already shows departure with
+  `DateFormat('EEE, d MMM · hh:mm a').format(ride.departAt)` in `_RideCard`.
+- No DB/migration changes.
+
+### Verified behaviours
+| Behaviour | Status |
+|---|---|
+| Date picker defaults to today | ✅ |
+| Allowed range: today → today+7 days | ✅ |
+| Departure combining date+time into one local DateTime | ✅ |
+| Saved to `depart_at` as UTC via `.toUtc()` | ✅ |
+| Departure < 30 min from now → clear error, submission blocked | ✅ |
+| Date shown on Ride Status screen (searching + group) | ✅ |
+| Date shown on My Rides card | ✅ |
+
+- `flutter analyze lib` → **No issues**
+
+---
+
+## ✅ Feature — Matching Engine: 7-day Lookahead & Cross-Date Isolation (DONE)
+
+**Date:** 2026-10-29
+
+### Requirement
+Update `run_matching()` in a new migration so:
+1. Two requests are compatible only if their full `depart_at` timestamps overlap within their windows (so different dates never match).
+2. Pickups are within configured pickup distance (`max_pickup_radius_m`).
+3. Drop-offs are within configured drop-off distance (`max_dropoff_radius_m`).
+4. Both requests are in `'searching'` status.
+5. Requests are from different riders (`c.rider_id <> req.rider_id`).
+6. Remove the "next 60 minutes" limit and use a configurable lookahead (`matching_lookahead_days`, default 7 days).
+7. Expire unmatched requests at `depart_at` minus 15 minutes (`depart_at - expire_before_min <= now()`).
+8. Keep groups of 2 to 4 and `FOR UPDATE SKIP LOCKED`.
+9. Update `supabase/seed_test_requests.sql` with the same places and times on two different dates to prove different dates don't match.
+
+### What was done
+
+#### SQL migration: `supabase/migrations/011_matching_lookahead_and_dates.sql`
+- **Schema**: Added `matching_lookahead_days int not null default 7` to `public.pricing_config`.
+- **Function**: Updated `run_matching()`:
+  - **Stale expiry**: Unmatched requests with `depart_at - (expire_before_min || ' minutes')::interval <= now()` are marked `expired`.
+  - **Eligible window**: Considers `searching` requests departing within `matching_lookahead_days` days (default 7 days).
+  - **Candidate matching**:
+    - Full `depart_at` `timestamptz` timestamp overlap: `req.depart_at +/- window_min` overlaps `c.depart_at +/- window_min` (different dates 24h apart never overlap).
+    - PostGIS `st_dwithin` for pickup and drop-off radii.
+    - `c.status = 'searching'` and `c.rider_id <> req.rider_id`.
+    - `FOR UPDATE SKIP LOCKED` on outer loop and candidate loop.
+    - Groups formed for 2 to 4 riders (`limit 3` candidates per anchor).
+
+#### Test seed: `supabase/seed_test_requests.sql`
+- Configured 10 ride requests across two dates (Date 1 = today + ~30m, Date 2 = Date 1 + 1 day):
+  - **Requests 1–2 (Date 1)**: Uttara → Motijheel (~30m from now) → forms Date 1 group of 2.
+  - **Requests 3–4 (Date 2)**: Uttara → Motijheel (SAME places & times-of-day, +1 day) → forms Date 2 group of 2. **Proves: Requests 3–4 do not merge across dates with Requests 1–2 into a group of 4.**
+  - **Requests 5–6 (Date 1)**: Mirpur 10 → Gulshan 1 → forms Date 1 group of 2.
+  - **Requests 7–8 (Date 1)**: Dhanmondi → Farmgate → forms Date 1 group of 2.
+  - **Request 9 (Date 1)**: Chittagong (far location) → remains `searching` (geo-isolated).
+  - **Request 10 (Date 2)**: Dhanmondi → Farmgate (SAME places & time as Request 7, +1 day) → remains `searching`. **Proves: Date 2 solo rider cannot join an open Date 1 group (capacity 4).**
+
+#### Verification query: `supabase/verify_matching.sql`
+- Added cross-date isolation query: `count(distinct date(rr.depart_at))` per group, proving each group contains only rides from a single date (`distinct_dates = 1`).
+
+---
+
 ## ⏭️ Step 9 — Driver Mode Screens (NEXT)
 
 **What to do manually before Step 9:**
