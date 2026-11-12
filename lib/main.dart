@@ -46,7 +46,8 @@ class ShareGariApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'ShareGari',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
+      theme: AppTheme.light,
+      themeMode: ThemeMode.light,
       routerConfig: router,
     );
   }

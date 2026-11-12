@@ -795,6 +795,65 @@ Update `run_matching()` in a new migration so:
 
 ---
 
+## ✅ Feature — App Theme Redesign: Light Theme with Green Accents (DONE)
+
+**Date:** 2026-11-08
+
+### Requirement
+Switch the app theme from dark to a clean Material 3 light theme with a white background and green accents:
+- Centralize colors in `lib/core/theme/app_theme.dart`:
+  - Background / scaffold: white `#FFFFFF`
+  - Cards, input fields, bottom sheets: light green-grey `#F4F8F5` with border `#DDE8E1`
+  - Primary green: `#0B7A4B` (buttons, app bar accents, selected chips, active icons)
+  - Darker green for pressed states and headings: `#085C38`
+  - Light green tint for highlights and banners: `#E3F4EA`
+  - Text: dark `#1B1F1D` for main text, `#5F6B64` for secondary text
+  - Error: `#D32F2F` (with light `#FDE8E8` tint for banners), Success: primary green `#0B7A4B`
+  - Small accent: `#FFB400` (ratings / badges)
+  - Contrasting marker: green for pickup, deep orange `#E65100` for drop-off
+- Remove hardcoded dark colors and replace with `AppColors` and `Theme.of(context)`.
+- Buttons: primary filled green with white text; secondary outlined green.
+- Time-window chips (±10 / ±15 / ±20): selected = filled green with white text; unselected = light surface with dark text.
+- High contrast across all screens and status badges on white backgrounds.
+- Set `ThemeMode.light` with dark status bar and navigation bar icons on white.
+- Keep map tiles as they are.
+- Audit every screen: Login, Register, Home, Request Ride, My Rides, Ride Status, bottom sheets, dialogs.
+- `env.json` unchanged. Run `flutter analyze`.
+
+### Changes Applied
+1. **`lib/core/theme/app_theme.dart`**:
+   - Implemented light `ColorScheme.light` and palette constants (`primary #0B7A4B`, `primaryDark #085C38`, `primaryTint #E3F4EA`, `secondary #E65100`, `accent #FFB400`, `background #FFFFFF`, `surface #F4F8F5`, `border #DDE8E1`, `surfaceVariant #E8EFEA`, `onBackground #1B1F1D`, `onSurfaceMuted #5F6B64`, `error #D32F2F`, `errorTint #FDE8E8`).
+   - Configured `SystemUiOverlayStyle` with dark status/navigation bar icons on transparent/white.
+   - Standardized `elevatedButtonTheme`, `outlinedButtonTheme`, `textButtonTheme`, `inputDecorationTheme`, `cardTheme`, `dialogTheme`, `bottomSheetTheme`, and `bottomNavigationBarTheme`.
+2. **`lib/main.dart`**: Set `theme: AppTheme.light` and `themeMode: ThemeMode.light`.
+3. **`lib/features/auth/login_screen.dart` & `register_screen.dart`**:
+   - Replaced dark backgrounds and alpha borders with `AppColors.errorTint`, `AppColors.error`, `AppColors.primaryTint`, and `AppColors.border`.
+4. **`lib/features/home/home_screen.dart`**:
+   - Updated quick request cards and empty placeholders with `AppColors.surface`, `AppColors.primaryTint`, and `AppColors.border`.
+5. **`lib/features/ride_request/ride_request_screen.dart`**:
+   - `_FareBanner` & `_SavingsBanner` updated with `AppColors.primaryTint` and `AppColors.primaryDark` text.
+   - `_LocationField`, `_TimePickerTile`, and `_DatePickerTile` updated with clean `#F4F8F5` surface and `#DDE8E1` borders.
+   - `_FlexChips` (±10 / ±15 / ±20) now render filled green with white text when selected, and `#F4F8F5` with dark text and border when unselected.
+   - Submit button text/indicator properly contrasted.
+6. **`lib/features/ride_request/widgets/map_picker.dart`**:
+   - Green pickup pin (`#0B7A4B`) and contrasting orange drop-off pin (`#E65100`).
+   - Mode toggle chip & resolving chip use `#FFFFFF` background with `#DDE8E1` border.
+7. **`lib/features/ride_request/widgets/location_search_sheet.dart`**:
+   - Search sheet container, handle bar, and search input aligned with light palette.
+8. **`lib/features/my_rides/my_rides_screen.dart`**:
+   - Filter chips: selected = filled green with white text, unselected = light surface with dark text.
+   - Status badges (`searching`, `pending`, `matched`, `confirmed`, `in_progress`, `completed`, `cancelled`, `expired`) redesigned with accessible pastel tints, solid text, and borders on white.
+9. **`lib/features/ride_status/ride_status_screen.dart`**:
+   - Open group banner updated to `AppColors.primaryTint` background with dark green `#085C38` text.
+   - Cancel confirmation dialog uses light background and high-contrast text.
+   - Co-rider list, driver card, and status badges styled for crisp visibility.
+
+### Verification
+- `flutter analyze`: **No issues found!**
+- All screens audited. `env.json` was not modified.
+
+---
+
 ## ⏭️ Step 9 — Driver Mode Screens (NEXT)
 
 **What to do manually before Step 9:**

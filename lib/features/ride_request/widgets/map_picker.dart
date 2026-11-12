@@ -151,7 +151,7 @@ class _MapPickerState extends ConsumerState<MapPicker> {
                 PolylineLayer(polylines: [
                   Polyline(
                     points: [pickup.latLng, dropoff.latLng],
-                    color: AppColors.primary.withAlpha(180),
+                    color: AppColors.primaryDark.withAlpha(200),
                     strokeWidth: 3,
                     pattern: const StrokePattern.dotted(),
                   ),
@@ -215,9 +215,10 @@ class _ModeToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.surface.withAlpha(230),
+        color: AppColors.background.withAlpha(240),
         borderRadius: BorderRadius.circular(10),
-        boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black26)],
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -285,8 +286,10 @@ class _LoadingChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surface.withAlpha(220),
+        color: AppColors.background.withAlpha(240),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black12)],
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,

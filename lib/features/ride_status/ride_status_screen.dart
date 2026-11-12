@@ -79,11 +79,14 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: AppColors.background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.border),
+        ),
         title: Text(
           isMatched ? 'Cancel after group formed?' : 'Cancel request?',
-          style: const TextStyle(color: AppColors.onBackground),
+          style: const TextStyle(color: AppColors.onBackground, fontWeight: FontWeight.w700),
         ),
         content: Text(
           isMatched
@@ -100,9 +103,9 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
+            child: const Text(
               'Cancel ride',
-              style: TextStyle(color: AppColors.error),
+              style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -373,7 +376,7 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withAlpha(25),
+                    color: AppColors.primaryTint,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: AppColors.primary.withAlpha(80)),
                   ),
@@ -381,14 +384,14 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Icon(Icons.people_outline_rounded,
-                          color: AppColors.primary, size: 22),
+                          color: AppColors.primaryDark, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'Group open: ${group.riderCount} of 4 riders, current price ৳${group.displayFare.toStringAsFixed(0)}, may drop as riders join. Confirmed at $cutoffTimeStr',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
+                                color: AppColors.primaryDark,
+                                fontWeight: FontWeight.w600,
                                 height: 1.35,
                               ),
                         ),
@@ -513,10 +516,12 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
                       ]),
                       Row(children: [
                         const Icon(Icons.star_rounded,
-                            size: 14, color: Colors.amber),
+                            size: 14, color: AppColors.accent),
                         const SizedBox(width: 2),
                         Text(group.driver!.rating.toStringAsFixed(1),
-                            style: Theme.of(context).textTheme.bodySmall),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                )),
                       ]),
                     ],
                   ),
@@ -547,12 +552,12 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
   }
 
   Color _groupColor(GroupStatus s) => switch (s) {
-        GroupStatus.open           => AppColors.primary,
-        GroupStatus.forming        => AppColors.primary,
-        GroupStatus.pendingDriver  => AppColors.primary,
+        GroupStatus.open           => AppColors.primaryDark,
+        GroupStatus.forming        => AppColors.primaryDark,
+        GroupStatus.pendingDriver  => AppColors.primaryDark,
         GroupStatus.driverAssigned => AppColors.secondary,
-        GroupStatus.confirmed      => Colors.green,
-        GroupStatus.inProgress     => Colors.blue,
+        GroupStatus.confirmed      => AppColors.primaryDark,
+        GroupStatus.inProgress     => const Color(0xFF1D4ED8),
         GroupStatus.completed      => AppColors.onSurfaceMuted,
         GroupStatus.cancelled      => AppColors.error,
       };
@@ -676,7 +681,7 @@ class _PulsingDotState extends State<_PulsingDot>
           width: 72,
           height: 72,
           decoration: BoxDecoration(
-            color: AppColors.primary.withAlpha(30),
+            color: AppColors.primaryTint,
             shape: BoxShape.circle,
             border: Border.all(color: AppColors.primary, width: 2),
           ),
@@ -693,23 +698,23 @@ class _StatusIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = switch (status) {
-      GroupStatus.open           => (Icons.group_add_rounded, AppColors.primary),
-      GroupStatus.forming        => (Icons.people_rounded, AppColors.primary),
-      GroupStatus.pendingDriver  => (Icons.directions_car_rounded, AppColors.primary),
-      GroupStatus.driverAssigned => (Icons.directions_car_rounded, AppColors.secondary),
-      GroupStatus.confirmed      => (Icons.check_circle_rounded, Colors.green),
-      GroupStatus.inProgress     => (Icons.navigation_rounded, Colors.blue),
-      GroupStatus.completed      => (Icons.flag_rounded, AppColors.onSurfaceMuted),
-      GroupStatus.cancelled      => (Icons.cancel_rounded, AppColors.error),
+    final (icon, color, bgColor) = switch (status) {
+      GroupStatus.open           => (Icons.group_add_rounded, AppColors.primaryDark, AppColors.primaryTint),
+      GroupStatus.forming        => (Icons.people_rounded, AppColors.primaryDark, AppColors.primaryTint),
+      GroupStatus.pendingDriver  => (Icons.directions_car_rounded, AppColors.primaryDark, AppColors.primaryTint),
+      GroupStatus.driverAssigned => (Icons.directions_car_rounded, AppColors.secondary, const Color(0xFFFFEDD5)),
+      GroupStatus.confirmed      => (Icons.check_circle_rounded, AppColors.primaryDark, AppColors.primaryTint),
+      GroupStatus.inProgress     => (Icons.navigation_rounded, const Color(0xFF1E40AF), const Color(0xFFDBEAFE)),
+      GroupStatus.completed      => (Icons.flag_rounded, AppColors.onSurfaceMuted, AppColors.surfaceVariant),
+      GroupStatus.cancelled      => (Icons.cancel_rounded, AppColors.error, AppColors.errorTint),
     };
     return Container(
       width: 72,
       height: 72,
       decoration: BoxDecoration(
-        color: color.withAlpha(30),
+        color: bgColor,
         shape: BoxShape.circle,
-        border: Border.all(color: color, width: 2),
+        border: Border.all(color: color.withAlpha(120), width: 2),
       ),
       child: Icon(icon, size: 36, color: color),
     );
@@ -727,7 +732,7 @@ class _SectionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.surfaceVariant),
+          border: Border.all(color: AppColors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -752,7 +757,9 @@ class _TripRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.onSurface,
+                  ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -782,9 +789,12 @@ class _RiderRow extends StatelessWidget {
             height: 28,
             decoration: BoxDecoration(
               color: isSelf
-                  ? AppColors.primary.withAlpha(40)
+                  ? AppColors.primaryTint
                   : AppColors.surfaceVariant,
               shape: BoxShape.circle,
+              border: isSelf
+                  ? Border.all(color: AppColors.primary.withAlpha(100))
+                  : null,
             ),
             child: Center(
               child: Text(
@@ -792,7 +802,7 @@ class _RiderRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: isSelf ? AppColors.primary : AppColors.onSurfaceMuted,
+                  color: isSelf ? AppColors.primaryDark : AppColors.onSurfaceMuted,
                 ),
               ),
             ),
@@ -813,8 +823,8 @@ class _RiderRow extends StatelessWidget {
           Text(
             '৳${fare.toStringAsFixed(0)}',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryDark,
+                  fontWeight: FontWeight.w700,
                 ),
           ),
         ],

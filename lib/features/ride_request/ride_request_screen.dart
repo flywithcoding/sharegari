@@ -412,17 +412,14 @@ class _FareBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.primaryTint,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withAlpha(80)),
       ),
       child: Row(
         children: [
           const Icon(Icons.savings_rounded,
-              color: AppColors.onPrimary, size: 20),
+              color: AppColors.primary, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -431,18 +428,19 @@ class _FareBanner extends StatelessWidget {
                 Text(
                   'Est. shared fare per person',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.onPrimary.withAlpha(200)),
+                      color: AppColors.primaryDark,
+                      fontWeight: FontWeight.w500),
                 ),
                 Text(
                   range.label,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.onPrimary,
+                      color: AppColors.primaryDark,
                       fontWeight: FontWeight.w700),
                 ),
                 Text(
                   'Range: 4-person (best) to 2-person',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.onPrimary.withAlpha(180),
+                      color: AppColors.onSurfaceMuted,
                       fontSize: 10),
                 ),
               ],
@@ -462,8 +460,9 @@ class _RouteLoadingBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -516,23 +515,20 @@ class _SavingsBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.primaryTint,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withAlpha(80)),
       ),
       child: Row(
         children: [
           const Icon(Icons.savings_rounded,
-              color: AppColors.onPrimary, size: 18),
+              color: AppColors.primary, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               'Save up to 75% — as low as ৳125 per person!',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.onPrimary,
+                    color: AppColors.primaryDark,
                     fontWeight: FontWeight.w600,
                   ),
             ),
@@ -566,11 +562,11 @@ class _LocationField extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color:
-                value != null ? iconColor.withAlpha(120) : Colors.transparent,
+                value != null ? iconColor : AppColors.border,
             width: 1.2,
           ),
         ),
@@ -623,8 +619,9 @@ class _TimePickerTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
@@ -633,7 +630,7 @@ class _TimePickerTile extends StatelessWidget {
             const SizedBox(width: 8),
             Text(time.format(context),
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600)),
+                    fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
           ],
         ),
       ),
@@ -659,8 +656,9 @@ class _DatePickerTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -670,7 +668,7 @@ class _DatePickerTile extends StatelessWidget {
             const SizedBox(width: 6),
             Text(label,
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600)),
+                    fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
           ],
         ),
       ),
@@ -698,8 +696,11 @@ class _FlexChips extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               decoration: BoxDecoration(
                 color:
-                    selected ? AppColors.primary : AppColors.surfaceVariant,
+                    selected ? AppColors.primary : AppColors.surface,
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: selected ? AppColors.primary : AppColors.border,
+                ),
               ),
               child: Text(
                 '±$m',
@@ -708,7 +709,7 @@ class _FlexChips extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: selected
                       ? AppColors.onPrimary
-                      : AppColors.onSurfaceMuted,
+                      : AppColors.onSurface,
                 ),
               ),
             ),
@@ -728,9 +729,9 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.error.withAlpha(30),
+        color: AppColors.errorTint,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withAlpha(100)),
+        border: Border.all(color: AppColors.error.withAlpha(80)),
       ),
       child: Row(
         children: [
@@ -743,7 +744,7 @@ class _ErrorBanner extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.error),
+                  ?.copyWith(color: AppColors.error, fontWeight: FontWeight.w500),
             ),
           ),
         ],

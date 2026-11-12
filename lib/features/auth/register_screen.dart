@@ -270,12 +270,12 @@ class _RoleCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.primary.withAlpha(30)
-                : AppColors.surfaceVariant,
+                ? AppColors.primaryTint
+                : AppColors.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppColors.primary : Colors.transparent,
-              width: 1.5,
+              color: isSelected ? AppColors.primary : AppColors.border,
+              width: isSelected ? 1.5 : 1.0,
             ),
           ),
           child: Column(
@@ -292,10 +292,10 @@ class _RoleCard extends StatelessWidget {
                 label,
                 style: TextStyle(
                   color: isSelected
-                      ? AppColors.primary
+                      ? AppColors.primaryDark
                       : AppColors.onSurfaceMuted,
                   fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.normal,
+                      isSelected ? FontWeight.w700 : FontWeight.normal,
                 ),
               ),
             ],
@@ -317,9 +317,9 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.error.withAlpha(30),
+        color: AppColors.errorTint,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withAlpha(100)),
+        border: Border.all(color: AppColors.error.withAlpha(80)),
       ),
       child: Row(
         children: [
@@ -332,7 +332,7 @@ class _ErrorBanner extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.error),
+                  ?.copyWith(color: AppColors.error, fontWeight: FontWeight.w500),
             ),
           ),
         ],

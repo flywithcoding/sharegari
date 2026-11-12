@@ -84,8 +84,11 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                         decoration: BoxDecoration(
                           color: selected
                               ? AppColors.primary
-                              : AppColors.surfaceVariant,
+                              : AppColors.surface,
                           borderRadius: BorderRadius.circular(100),
+                          border: Border.all(
+                            color: selected ? AppColors.primary : AppColors.border,
+                          ),
                         ),
                         child: Text(
                           e.value,
@@ -96,7 +99,7 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                                 : FontWeight.w400,
                             color: selected
                                 ? AppColors.onPrimary
-                                : AppColors.onSurfaceMuted,
+                                : AppColors.onSurface,
                           ),
                         ),
                       ),
@@ -228,7 +231,7 @@ class _RideCard extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _statusBorderColor(ride.status).withAlpha(80),
+          color: _statusBorderColor(ride.status),
           width: 1.2,
         ),
       ),
@@ -261,7 +264,7 @@ class _RideCard extends StatelessWidget {
             child: SizedBox(
               height: 14,
               child: VerticalDivider(
-                  color: AppColors.surfaceVariant, thickness: 1.5),
+                  color: AppColors.border, thickness: 1.5),
             ),
           ),
           _RouteRow(
@@ -282,7 +285,7 @@ class _RideCard extends StatelessWidget {
             Text(
               'Est. shared fare: ৳${ride.estimatedShareFare!.toStringAsFixed(0)}',
               style: tt.bodySmall?.copyWith(
-                  color: AppColors.primary, fontWeight: FontWeight.w600),
+                  color: AppColors.primaryDark, fontWeight: FontWeight.w600),
             ),
           ],
 
@@ -296,7 +299,7 @@ class _RideCard extends StatelessWidget {
                 onPressed: onCancel,
                 icon: const Icon(Icons.cancel_outlined,
                     size: 16, color: AppColors.error),
-                label: Text('Cancel',
+                label: const Text('Cancel',
                     style: TextStyle(color: AppColors.error, fontSize: 13)),
                 style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
@@ -310,14 +313,14 @@ class _RideCard extends StatelessWidget {
   }
 
   Color _statusBorderColor(RideRequestStatus s) => switch (s) {
-        RideRequestStatus.searching => AppColors.primary,
-        RideRequestStatus.pending   => AppColors.primary,
-        RideRequestStatus.matched   => Colors.amber,
-        RideRequestStatus.confirmed => Colors.green,
-        RideRequestStatus.inProgress => Colors.blue,
-        RideRequestStatus.completed => AppColors.onSurfaceMuted,
-        RideRequestStatus.cancelled => AppColors.error,
-        RideRequestStatus.expired   => AppColors.onSurfaceMuted,
+        RideRequestStatus.searching => AppColors.primary.withAlpha(120),
+        RideRequestStatus.pending   => AppColors.primary.withAlpha(120),
+        RideRequestStatus.matched   => const Color(0xFFD97706).withAlpha(120),
+        RideRequestStatus.confirmed => AppColors.primary.withAlpha(120),
+        RideRequestStatus.inProgress => const Color(0xFF1D4ED8).withAlpha(120),
+        RideRequestStatus.completed => AppColors.border,
+        RideRequestStatus.cancelled => AppColors.error.withAlpha(120),
+        RideRequestStatus.expired   => AppColors.border,
       };
 }
 
@@ -337,7 +340,10 @@ class _RouteRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -353,30 +359,35 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (color, bg) = switch (status) {
-      RideRequestStatus.searching  => (AppColors.primary, AppColors.primary),
-      RideRequestStatus.pending    => (AppColors.primary, AppColors.primary),
-      RideRequestStatus.matched    => (Colors.amber.shade700, Colors.amber),
-      RideRequestStatus.confirmed  => (Colors.green.shade700, Colors.green),
-      RideRequestStatus.inProgress => (Colors.blue.shade700, Colors.blue),
+    final (textColor, bgColor, borderColor) = switch (status) {
+      RideRequestStatus.searching  =>
+        (AppColors.primaryDark, AppColors.primaryTint, AppColors.primary.withAlpha(100)),
+      RideRequestStatus.pending    =>
+        (AppColors.primaryDark, AppColors.primaryTint, AppColors.primary.withAlpha(100)),
+      RideRequestStatus.matched    =>
+        (const Color(0xFFB45309), const Color(0xFFFEF3C7), const Color(0xFFFCD34D)),
+      RideRequestStatus.confirmed  =>
+        (AppColors.primaryDark, AppColors.primaryTint, AppColors.primary.withAlpha(100)),
+      RideRequestStatus.inProgress =>
+        (const Color(0xFF1E40AF), const Color(0xFFDBEAFE), const Color(0xFF93C5FD)),
       RideRequestStatus.completed  =>
-        (AppColors.onSurfaceMuted, AppColors.surfaceVariant),
+        (AppColors.onSurfaceMuted, AppColors.surfaceVariant, AppColors.border),
       RideRequestStatus.cancelled  =>
-        (AppColors.error, AppColors.error),
+        (AppColors.error, AppColors.errorTint, AppColors.error.withAlpha(100)),
       RideRequestStatus.expired    =>
-        (AppColors.onSurfaceMuted, AppColors.surfaceVariant),
+        (AppColors.onSurfaceMuted, AppColors.surfaceVariant, AppColors.border),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: bg.withAlpha(30),
+        color: bgColor,
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: bg.withAlpha(100)),
+        border: Border.all(color: borderColor),
       ),
       child: Text(
         status.label,
         style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w600, color: color),
+            fontSize: 11, fontWeight: FontWeight.w600, color: textColor),
       ),
     );
   }

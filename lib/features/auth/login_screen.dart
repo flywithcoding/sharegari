@@ -92,7 +92,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final tt = theme.textTheme;
 
     return Scaffold(
       body: SafeArea(
@@ -219,9 +220,9 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.error.withAlpha(30),
+        color: AppColors.errorTint,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withAlpha(100)),
+        border: Border.all(color: AppColors.error.withAlpha(80)),
       ),
       child: Row(
         children: [
@@ -234,7 +235,7 @@ class _ErrorBanner extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.error),
+                  ?.copyWith(color: AppColors.error, fontWeight: FontWeight.w500),
             ),
           ),
         ],

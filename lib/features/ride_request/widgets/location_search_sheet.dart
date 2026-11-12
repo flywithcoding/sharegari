@@ -32,7 +32,7 @@ Future<LocationResult?> showLocationSearchSheet(
   return showModalBottomSheet<LocationResult>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.surface,
+    backgroundColor: AppColors.background,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -155,7 +155,7 @@ class _LocationSearchSheetState
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
+                color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

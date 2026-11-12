@@ -109,15 +109,15 @@ class _QuickRequestCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.surfaceVariant),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
             Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withAlpha(30),
+              decoration: const BoxDecoration(
+                color: AppColors.primaryTint,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.share_rounded,
@@ -159,7 +159,7 @@ class _EmptyRidesPlaceholder extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceVariant),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
