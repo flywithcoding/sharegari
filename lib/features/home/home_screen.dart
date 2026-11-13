@@ -5,6 +5,7 @@ import 'package:sharegari/core/router/app_router.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
 import 'package:sharegari/features/auth/data/auth_repository.dart';
 import 'package:sharegari/features/auth/providers/auth_providers.dart';
+import 'package:sharegari/features/profile/providers/profile_providers.dart';
 
 /// Home / dashboard screen for riders.
 ///
@@ -16,7 +17,9 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tt = Theme.of(context).textTheme;
     final user = ref.watch(currentUserProvider);
-    final displayName = user?.userMetadata?['name'] as String? ??
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final displayName = profile?.fullName ??
+        user?.userMetadata?['name'] as String? ??
         user?.email?.split('@').first ??
         'there';
 
@@ -24,11 +27,19 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('ShareGari'),
         actions: [
+          // Profile avatar/icon button
+          IconButton(
+            icon: const Icon(Icons.person_outline_rounded),
+            tooltip: 'My Profile',
+            onPressed: () => context.push(AppRoutes.profile),
+          ),
           // Sign-out button
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             tooltip: 'Sign out',
             onPressed: () async {
+              ref.invalidate(profileProvider);
+              ref.invalidate(userRideStatsProvider);
               await ref.read(authRepositoryProvider).signOut();
               if (context.mounted) context.go(AppRoutes.login);
             },
@@ -73,6 +84,7 @@ class HomeScreen extends ConsumerWidget {
         currentIndex: 0,
         onTap: (i) {
           if (i == 1) context.push(AppRoutes.myRides);
+          if (i == 2) context.push(AppRoutes.profile);
         },
         items: const [
           BottomNavigationBarItem(
@@ -82,6 +94,10 @@ class HomeScreen extends ConsumerWidget {
           BottomNavigationBarItem(
             icon: Icon(Icons.directions_car_rounded),
             label: 'My Rides',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline_rounded),
+            label: 'Profile',
           ),
         ],
       ),

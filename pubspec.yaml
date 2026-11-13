@@ -35,6 +35,7 @@ dependencies:
 
   # Date/time formatting (MyRidesScreen)
   intl: ^0.20.1
+  image_picker: ^1.2.4
 
 dev_dependencies:
   flutter_test:

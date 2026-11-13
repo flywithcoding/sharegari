@@ -7,6 +7,8 @@ import 'package:sharegari/features/auth/providers/auth_providers.dart';
 import 'package:sharegari/features/home/home_screen.dart';
 import 'package:sharegari/features/ride_request/ride_request_screen.dart';
 import 'package:sharegari/features/my_rides/my_rides_screen.dart';
+import 'package:sharegari/features/profile/edit_profile_screen.dart';
+import 'package:sharegari/features/profile/profile_screen.dart';
 import 'package:sharegari/features/ride_status/ride_status_screen.dart';
 
 /// Named route path constants.
@@ -16,6 +18,8 @@ abstract final class AppRoutes {
   static const home = '/';
   static const rideRequest = '/ride-request';
   static const myRides = '/my-rides';
+  static const profile = '/profile';
+  static const editProfile = '/profile/edit';
 
   /// Path: /ride-status/:requestId
   /// Extra keys: 'pickupAddress', 'dropAddress',
@@ -100,6 +104,16 @@ GoRouter createRouter(WidgetRef ref) {
         path: AppRoutes.myRides,
         name: 'myRides',
         builder: (context, state) => const MyRidesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.profile,
+        name: 'profile',
+        builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.editProfile,
+        name: 'editProfile',
+        builder: (context, state) => const EditProfileScreen(),
       ),
       GoRoute(
         path: AppRoutes.rideStatus,
