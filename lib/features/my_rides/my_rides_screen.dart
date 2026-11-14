@@ -14,8 +14,8 @@ import 'package:sharegari/features/ride_request/providers/ride_request_providers
 
 /// My Rides screen — real-time list of the current user's ride requests.
 ///
-/// Streams from Supabase Realtime so status updates (pending → matched, etc.)
-/// are reflected immediately without any manual refresh.
+/// Styled as modern ticket-style cards with route tracking, live status,
+/// and perforated dividers.
 class MyRidesScreen extends ConsumerStatefulWidget {
   const MyRidesScreen({super.key});
 
@@ -42,10 +42,9 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
     final ridesAsync = ref.watch(myRidesProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('My Rides'),
-        // Explicit leading so the back button always appears, regardless of
-        // how this screen was reached (context.push vs context.go).
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           tooltip: 'Back',
@@ -70,41 +69,40 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── Status filter chips ──────────────────────────────────
-            SizedBox(
-              height: 48,
+            Container(
+              height: 52,
+              padding: const EdgeInsets.symmetric(vertical: 6),
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: _filters.entries.map((e) {
                   final selected = _filterStatus == e.key;
                   return Padding(
-                    padding: const EdgeInsets.only(right: 8, top: 8),
+                    padding: const EdgeInsets.only(right: 8),
                     child: PressableScale(
                       onTap: () => setState(() => _filterStatus = e.key),
                       child: AnimatedContainer(
                         duration: AppMotion.fast,
                         curve: AppMotion.stateChangeCurve,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 6),
+                            horizontal: 16, vertical: 7),
                         decoration: BoxDecoration(
                           color: selected
                               ? AppColors.primary
                               : AppColors.surface,
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(
-                            color: selected ? AppColors.primary : AppColors.border,
-                          ),
+                          borderRadius: AppRadii.pill,
+                          boxShadow: selected ? AppShadows.soft : null,
                         ),
                         child: Text(
                           e.value,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: selected
-                                ? FontWeight.w600
-                                : FontWeight.w400,
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                             color: selected
                                 ? AppColors.onPrimary
-                                : AppColors.onSurface,
+                                : AppColors.onSurfaceMuted,
                           ),
                         ),
                       ),
@@ -113,7 +111,7 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                 }).toList(),
               ),
             ),
-            const Divider(height: 1),
+            const SizedBox(height: 6),
 
             // ── Rides list ───────────────────────────────────────────
             Expanded(
@@ -121,13 +119,11 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                 loading: () => _buildSkeletonLoading(),
                 error: (err, stack) => _ErrorState(error: err.toString()),
                 data: (allRides) {
-                  // Apply filter
                   final rides = _filterStatus == null
                       ? allRides
                       : allRides
                           .where((r) =>
                               r.status.name == _filterStatus ||
-                              // map enum names to DB strings
                               _dbStatus(r.status) == _filterStatus)
                           .toList();
 
@@ -140,13 +136,12 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                     onRefresh: () async =>
                         ref.invalidate(myRidesProvider),
                     child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       itemCount: rides.length,
-                      separatorBuilder: (_, i) =>
-                          const SizedBox(height: 10),
-                      itemBuilder: (_, i) {
-                        final ride = rides[i];
+                      separatorBuilder: (_, index) =>
+                          const SizedBox(height: 14),
+                      itemBuilder: (_, index) {
+                        final ride = rides[index];
                         Widget cardItem = PressableScale(
                           onTap: () => context.push(
                             AppRoutes.rideStatusPath(ride.id),
@@ -164,9 +159,9 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                           ),
                         );
 
-                        if (!reducedMotion && i < 8) {
+                        if (!reducedMotion && index < 8) {
                           cardItem = cardItem
-                              .animate(delay: (40 * i).ms)
+                              .animate(delay: (40 * index).ms)
                               .fadeIn(duration: AppMotion.normal, curve: AppMotion.entranceCurve)
                               .slideY(begin: 0.08, end: 0, duration: AppMotion.normal, curve: AppMotion.entranceCurve);
                         }
@@ -189,14 +184,14 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
       enabled: true,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        itemCount: 4,
-        separatorBuilder: (_, index) => const SizedBox(height: 10),
+        itemCount: 3,
+        separatorBuilder: (_, index) => const SizedBox(height: 14),
         itemBuilder: (_, index) => Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+            color: AppColors.background,
+            borderRadius: AppRadii.card,
+            boxShadow: AppShadows.card,
           ),
           child: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,20 +199,34 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
               Row(
                 children: [
                   Bone(
-                    width: 80,
-                    height: 22,
+                    width: 100,
+                    height: 24,
                     borderRadius: BorderRadius.all(Radius.circular(100)),
                   ),
                   Spacer(),
-                  Bone.text(words: 3),
+                  Bone(
+                    width: 70,
+                    height: 24,
+                    borderRadius: BorderRadius.all(Radius.circular(100)),
+                  ),
                 ],
               ),
+              SizedBox(height: 18),
+              Bone.text(words: 5),
               SizedBox(height: 14),
               Bone.text(words: 5),
-              SizedBox(height: 10),
-              Bone.text(words: 5),
-              SizedBox(height: 12),
-              Bone.text(words: 3),
+              SizedBox(height: 18),
+              Row(
+                children: [
+                  Bone.text(words: 3),
+                  Spacer(),
+                  Bone(
+                    width: 80,
+                    height: 28,
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -225,7 +234,6 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
     );
   }
 
-  /// Maps [RideRequestStatus] enum value → Postgres status string.
   String _dbStatus(RideRequestStatus s) => switch (s) {
         RideRequestStatus.searching  => 'searching',
         RideRequestStatus.pending    => 'pending',
@@ -250,8 +258,8 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
               child: const Text('Keep')),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text('Cancel ride',
-                  style: TextStyle(color: AppColors.error))),
+              child: const Text('Cancel ride',
+                  style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600))),
         ],
       ),
     );
@@ -267,7 +275,7 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
   }
 }
 
-// ── Ride card ────────────────────────────────────────────────────────────────
+// ── Modern Ticket-Style Ride Card ─────────────────────────────────────────────
 
 class _RideCard extends StatelessWidget {
   const _RideCard({required this.ride, required this.onCancel});
@@ -280,139 +288,310 @@ class _RideCard extends StatelessWidget {
     final dateStr =
         DateFormat('EEE, d MMM · hh:mm a').format(ride.departAt);
 
+    final fareValue = ride.estimatedShareFare != null
+        ? '৳${ride.estimatedShareFare!.toStringAsFixed(0)}'
+        : (ride.estimatedSoloFare != null
+            ? '৳${ride.estimatedSoloFare!.toStringAsFixed(0)}'
+            : '—');
+
     return Hero(
       tag: 'ride_card_${ride.id}',
       child: Material(
         type: MaterialType.transparency,
         child: Container(
-          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _statusBorderColor(ride.status),
-              width: 1.2,
-            ),
+            color: AppColors.background,
+            borderRadius: AppRadii.card,
+            boxShadow: AppShadows.ticket,
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Status badge + date + chevron row
-              Row(
-                children: [
-                  _StatusBadge(status: ride.status),
-                  const Spacer(),
-                  Text(dateStr,
-                      style: tt.bodySmall
-                          ?.copyWith(color: AppColors.onSurfaceMuted)),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right_rounded,
-                      size: 16, color: AppColors.onSurfaceMuted),
-                ],
+              // ── 1. Ticket Header ───────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: AppRadii.pill,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.schedule_rounded,
+                              size: 14, color: AppColors.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            dateStr,
+                            style: tt.bodySmall?.copyWith(
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    _StatusBadge(status: ride.status),
+                  ],
+                ),
+              ),
+
+              // ── 2. Perforated Ticket Divider ───────────────────────────
+              const _TicketPerforationLine(),
+
+              // ── 3. Route Line & Addresses ──────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Vertical route track
+                    Column(
+                      children: [
+                        const SizedBox(height: 3),
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        Container(
+                          width: 2,
+                          height: 26,
+                          color: AppColors.timelineTrack,
+                          margin: const EdgeInsets.symmetric(vertical: 2),
+                        ),
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: AppColors.secondary,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Pickup & Drop
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ride.pickupAddress,
+                            style: tt.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.onBackground,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            ride.dropAddress,
+                            style: tt.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.onBackground,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Flexibility badge
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  children: [
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: AppRadii.pill,
+                      ),
+                      child: Text(
+                        '±${ride.windowMin} min flexibility',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.onSurfaceMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
 
-              // Route
-              _RouteRow(
-                icon: Icons.my_location_rounded,
-                color: AppColors.primary,
-                label: ride.pickupAddress,
-              ),
-              const Padding(
-                padding: EdgeInsets.only(left: 10),
-                child: SizedBox(
-                  height: 14,
-                  child: VerticalDivider(
-                      color: AppColors.border, thickness: 1.5),
-                ),
-              ),
-              _RouteRow(
-                icon: Icons.location_on_rounded,
-                color: AppColors.secondary,
-                label: ride.dropAddress,
-              ),
-
-              // Flexibility
-              const SizedBox(height: 10),
-              Text('±${ride.windowMin} min flexibility',
-                  style: tt.bodySmall
-                      ?.copyWith(color: AppColors.onSurfaceMuted)),
-
-              // Fare estimates (if available)
-              if (ride.estimatedShareFare != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Est. shared fare: ৳${ride.estimatedShareFare!.toStringAsFixed(0)}',
-                  style: tt.bodySmall?.copyWith(
-                      color: AppColors.primaryDark, fontWeight: FontWeight.w600),
-                ),
-              ],
-
-              // Cancel button (only for pending)
-              if (ride.status == RideRequestStatus.searching ||
-                  ride.status == RideRequestStatus.pending) ...[
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: onCancel,
-                    icon: const Icon(Icons.cancel_outlined,
-                        size: 16, color: AppColors.error),
-                    label: const Text('Cancel',
-                        style: TextStyle(color: AppColors.error, fontSize: 13)),
-                    style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4)),
+              // ── 4. Ticket Footer (Price & Action) ───────────────────────
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(20),
                   ),
                 ),
-              ],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'EST. PER RIDER',
+                          style: TextStyle(
+                            fontSize: 10,
+                            letterSpacing: 0.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          fareValue,
+                          style: tt.titleLarge?.copyWith(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (ride.status == RideRequestStatus.searching ||
+                        ride.status == RideRequestStatus.pending)
+                      TextButton.icon(
+                        onPressed: onCancel,
+                        icon: const Icon(Icons.close_rounded,
+                            size: 16, color: AppColors.error),
+                        label: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                        ),
+                      )
+                    else
+                      Row(
+                        children: const [
+                          Text(
+                            'View status',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(Icons.arrow_forward_rounded,
+                              size: 16, color: AppColors.primary),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
-
-  Color _statusBorderColor(RideRequestStatus s) => switch (s) {
-        RideRequestStatus.searching => AppColors.primary.withAlpha(120),
-        RideRequestStatus.pending   => AppColors.primary.withAlpha(120),
-        RideRequestStatus.matched   => const Color(0xFFD97706).withAlpha(120),
-        RideRequestStatus.confirmed => AppColors.primary.withAlpha(120),
-        RideRequestStatus.inProgress => const Color(0xFF1D4ED8).withAlpha(120),
-        RideRequestStatus.completed => AppColors.border,
-        RideRequestStatus.cancelled => AppColors.error.withAlpha(120),
-        RideRequestStatus.expired   => AppColors.border,
-      };
 }
 
-class _RouteRow extends StatelessWidget {
-  const _RouteRow(
-      {required this.icon, required this.color, required this.label});
-  final IconData icon;
-  final Color color;
-  final String label;
+// ── Perforated Ticket Line with Notches ────────────────────────────────────────
+
+class _TicketPerforationLine extends StatelessWidget {
+  const _TicketPerforationLine();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w500,
-                ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+    return SizedBox(
+      height: 16,
+      child: Row(
+        children: [
+          // Left ticket notch
+          Container(
+            width: 8,
+            height: 16,
+            decoration: const BoxDecoration(
+              color: AppColors.background,
+              borderRadius:
+                  BorderRadius.horizontal(right: Radius.circular(8)),
+            ),
           ),
-        ),
-      ],
+          // Dashed perforation line
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: CustomPaint(
+                painter: const _DashedLinePainter(color: AppColors.ticketDotted),
+                size: const Size(double.infinity, 1),
+              ),
+            ),
+          ),
+          // Right ticket notch
+          Container(
+            width: 8,
+            height: 16,
+            decoration: const BoxDecoration(
+              color: AppColors.background,
+              borderRadius:
+                  BorderRadius.horizontal(left: Radius.circular(8)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
+
+class _DashedLinePainter extends CustomPainter {
+  const _DashedLinePainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    const dashWidth = 4.0;
+    const dashSpace = 3.0;
+    double startX = 0;
+    while (startX < size.width) {
+      canvas.drawLine(Offset(startX, 0), Offset(startX + dashWidth, 0), paint);
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedLinePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+// ── Status Badge ─────────────────────────────────────────────────────────────
 
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.status});
@@ -420,41 +599,58 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (textColor, bgColor, borderColor) = switch (status) {
+    final (textColor, bgColor) = switch (status) {
       RideRequestStatus.searching  =>
-        (AppColors.primaryDark, AppColors.primaryTint, AppColors.primary.withAlpha(100)),
+        (AppColors.primaryDark, AppColors.primaryTint),
       RideRequestStatus.pending    =>
-        (AppColors.primaryDark, AppColors.primaryTint, AppColors.primary.withAlpha(100)),
+        (AppColors.primaryDark, AppColors.primaryTint),
       RideRequestStatus.matched    =>
-        (const Color(0xFFB45309), const Color(0xFFFEF3C7), const Color(0xFFFCD34D)),
+        (AppColors.badgeWarning, AppColors.badgeWarningTint),
       RideRequestStatus.confirmed  =>
-        (AppColors.primaryDark, AppColors.primaryTint, AppColors.primary.withAlpha(100)),
+        (AppColors.primaryDark, AppColors.primaryTint),
       RideRequestStatus.inProgress =>
-        (const Color(0xFF1E40AF), const Color(0xFFDBEAFE), const Color(0xFF93C5FD)),
+        (AppColors.badgeInfo, AppColors.badgeInfoTint),
       RideRequestStatus.completed  =>
-        (AppColors.onSurfaceMuted, AppColors.surfaceVariant, AppColors.border),
+        (AppColors.onSurfaceMuted, AppColors.surfaceVariant),
       RideRequestStatus.cancelled  =>
-        (AppColors.error, AppColors.errorTint, AppColors.error.withAlpha(100)),
+        (AppColors.error, AppColors.errorTint),
       RideRequestStatus.expired    =>
-        (AppColors.onSurfaceMuted, AppColors.surfaceVariant, AppColors.border),
+        (AppColors.onSurfaceMuted, AppColors.surfaceVariant),
     };
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: borderColor),
+        borderRadius: AppRadii.pill,
       ),
-      child: Text(
-        status.label,
-        style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w600, color: textColor),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: textColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            status.label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ── Empty / error states ─────────────────────────────────────────────────────
+// ── Empty / Error States ─────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({this.filter});
@@ -463,29 +659,137 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.directions_car_outlined,
-                size: 64, color: AppColors.onSurfaceMuted),
-            const SizedBox(height: 16),
+            const _EmptyRidesIllustration(),
+            const SizedBox(height: 24),
             Text(
               filter == null ? 'No rides yet' : 'No ${filter!} rides',
-              style: tt.headlineSmall,
+              style: tt.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
               filter == null
-                  ? 'Tap the + button or the FAB on Home to request your first shared ride.'
-                  : 'Try a different filter.',
-              style: tt.bodySmall,
+                  ? 'Your scheduled trips and daily carpools will appear here as tickets.'
+                  : 'Try selecting another status tab above to see your other requests.',
+              style: tt.bodyMedium?.copyWith(
+                color: AppColors.onSurfaceMuted,
+                height: 1.4,
+              ),
               textAlign: TextAlign.center,
             ),
+            if (filter == null) ...[
+              const SizedBox(height: 24),
+              PressableScale(
+                child: SizedBox(
+                  width: 220,
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.push(AppRoutes.rideRequest),
+                    icon: const Icon(Icons.add_rounded, size: 20),
+                    label: const Text('Request a Ride'),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Custom illustration built exclusively from Flutter shapes & icons.
+class _EmptyRidesIllustration extends StatelessWidget {
+  const _EmptyRidesIllustration();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 140,
+      height: 140,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Outer subtle aura ring
+          Container(
+            width: 140,
+            height: 140,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primaryTint.withAlpha(70),
+            ),
+          ),
+          // Middle glowing ring
+          Container(
+            width: 104,
+            height: 104,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primaryTint,
+            ),
+          ),
+          // Center white circle with shadow
+          Container(
+            width: 72,
+            height: 72,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.background,
+              boxShadow: AppShadows.soft,
+            ),
+            child: const Icon(
+              Icons.confirmation_number_rounded,
+              color: AppColors.primary,
+              size: 34,
+            ),
+          ),
+          // Floating secondary pin badge top-right
+          Positioned(
+            top: 14,
+            right: 14,
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: const BoxDecoration(
+                color: AppColors.secondaryTint,
+                shape: BoxShape.circle,
+                boxShadow: AppShadows.soft,
+              ),
+              child: const Icon(
+                Icons.location_on_rounded,
+                color: AppColors.secondary,
+                size: 16,
+              ),
+            ),
+          ),
+          // Floating star badge bottom-left
+          Positioned(
+            bottom: 16,
+            left: 14,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryDark,
+                shape: BoxShape.circle,
+                boxShadow: AppShadows.soft,
+              ),
+              child: const Icon(
+                Icons.directions_car_rounded,
+                color: AppColors.onPrimary,
+                size: 14,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

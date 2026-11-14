@@ -424,17 +424,24 @@ class _FareBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.primaryTint,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withAlpha(80)),
+        borderRadius: AppRadii.card,
+        boxShadow: AppShadows.soft,
       ),
       child: Row(
         children: [
-          const Icon(Icons.savings_rounded,
-              color: AppColors.primary, size: 20),
-          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              color: AppColors.background,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.savings_rounded,
+                color: AppColors.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,19 +450,19 @@ class _FareBanner extends StatelessWidget {
                   'Est. shared fare per person',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.primaryDark,
-                      fontWeight: FontWeight.w500),
+                      fontWeight: FontWeight.w600),
                 ),
                 Text(
                   range.label,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: AppColors.primaryDark,
-                      fontWeight: FontWeight.w700),
+                      fontWeight: FontWeight.w800),
                 ),
                 Text(
                   'Range: 4-person (best) to 2-person',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.onSurfaceMuted,
-                      fontSize: 10),
+                      fontSize: 11),
                 ),
               ],
             ),
@@ -472,17 +479,17 @@ class _RouteLoadingBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        borderRadius: AppRadii.card,
+        boxShadow: AppShadows.soft,
       ),
       child: Row(
         children: [
           const SizedBox(
-            width: 16,
-            height: 16,
+            width: 18,
+            height: 18,
             child: CircularProgressIndicator(
                 strokeWidth: 2, color: AppColors.primary),
           ),
@@ -527,23 +534,30 @@ class _SavingsBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.primaryTint,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withAlpha(80)),
+        borderRadius: AppRadii.card,
+        boxShadow: AppShadows.soft,
       ),
       child: Row(
         children: [
-          const Icon(Icons.savings_rounded,
-              color: AppColors.primary, size: 18),
-          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              color: AppColors.background,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.savings_rounded,
+                color: AppColors.primary, size: 18),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Save up to 75% — as low as ৳125 per person!',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.primaryDark,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
             ),
           ),
@@ -574,27 +588,26 @@ class _LocationField extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color:
-                value != null ? iconColor : AppColors.border,
-            width: 1.2,
-          ),
+          borderRadius: AppRadii.input,
+          boxShadow: AppShadows.soft,
         ),
         child: Row(
           children: [
             Icon(icon, color: iconColor, size: 20),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(label,
                       style: const TextStyle(
-                          fontSize: 10, color: AppColors.onSurfaceMuted)),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                          color: AppColors.onSurfaceMuted)),
                   const SizedBox(height: 2),
                   Text(
                     value ?? hint,
@@ -604,7 +617,7 @@ class _LocationField extends StatelessWidget {
                           ? AppColors.onSurface
                           : AppColors.onSurfaceMuted,
                       fontWeight:
-                          value != null ? FontWeight.w500 : FontWeight.normal,
+                          value != null ? FontWeight.w600 : FontWeight.normal,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -613,7 +626,7 @@ class _LocationField extends StatelessWidget {
               ),
             ),
             const Icon(Icons.search_rounded,
-                size: 16, color: AppColors.onSurfaceMuted),
+                size: 18, color: AppColors.onSurfaceMuted),
           ],
         ),
       ),
@@ -631,11 +644,11 @@ class _TimePickerTile extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
+          borderRadius: AppRadii.input,
+          boxShadow: AppShadows.soft,
         ),
         child: Row(
           children: [
@@ -644,7 +657,7 @@ class _TimePickerTile extends StatelessWidget {
             const SizedBox(width: 8),
             Text(time.format(context),
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
+                    fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.onSurface)),
           ],
         ),
       ),
@@ -668,11 +681,11 @@ class _DatePickerTile extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
+          borderRadius: AppRadii.input,
+          boxShadow: AppShadows.soft,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -682,7 +695,7 @@ class _DatePickerTile extends StatelessWidget {
             const SizedBox(width: 6),
             Text(label,
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
+                    fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.onSurface)),
           ],
         ),
       ),
@@ -708,20 +721,18 @@ class _FlexChips extends StatelessWidget {
             child: AnimatedContainer(
               duration: AppMotion.fast,
               curve: AppMotion.stateChangeCurve,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
               decoration: BoxDecoration(
                 color:
                     selected ? AppColors.primary : AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: selected ? AppColors.primary : AppColors.border,
-                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: selected ? AppShadows.soft : null,
               ),
               child: Text(
                 '±$m',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   color: selected
                       ? AppColors.onPrimary
                       : AppColors.onSurface,

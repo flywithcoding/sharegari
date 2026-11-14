@@ -245,11 +245,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     if (_successMessage != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
+                            horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
                           color: AppColors.primaryTint,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.primary),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: AppShadows.soft,
                         ),
                         child: Row(
                           children: [
@@ -275,11 +275,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     if (_errorMessage != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
+                            horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
                           color: AppColors.errorTint,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.error.withAlpha(80)),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: AppShadows.soft,
                         ),
                         child: Row(
                           children: [
@@ -427,14 +427,15 @@ class _AvatarPreview extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.primaryTint,
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.border, width: 2),
+        boxShadow: AppShadows.elevated,
+        border: Border.all(color: AppColors.background, width: 3),
       ),
       child: Center(
         child: Text(
           initials,
           style: TextStyle(
-            fontSize: size * 0.38,
-            fontWeight: FontWeight.w700,
+            fontSize: size * 0.4,
+            fontWeight: FontWeight.w800,
             color: AppColors.primaryDark,
           ),
         ),

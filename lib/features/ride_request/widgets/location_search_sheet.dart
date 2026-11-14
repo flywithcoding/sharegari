@@ -38,7 +38,7 @@ Future<LocationResult?> showLocationSearchSheet(
     isScrollControlled: true,
     backgroundColor: AppColors.background,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      borderRadius: AppRadii.bottomSheet,
     ),
     builder: (ctx) => UncontrolledProviderScope(
       container: ProviderScope.containerOf(context),

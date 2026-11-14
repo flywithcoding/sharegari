@@ -10,7 +10,8 @@ import 'package:sharegari/features/auth/providers/auth_providers.dart';
 import 'package:sharegari/features/profile/providers/profile_providers.dart';
 import 'package:sharegari/features/ride_request/providers/ride_request_providers.dart';
 
-/// User Profile screen.
+/// User Profile screen featuring a prominent large avatar header,
+/// stat cards with soft shadows, and clean grouped settings cards.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -48,15 +49,12 @@ class ProfileScreen extends ConsumerWidget {
 
     if (confirmed != true) return;
 
-    // 1. Invalidate user-bound providers so next session starts completely clean
     ref.invalidate(profileProvider);
     ref.invalidate(userRideStatsProvider);
     ref.invalidate(myRidesProvider);
 
-    // 2. Sign out of Supabase (terminates sessions and realtime channels)
     await ref.read(authRepositoryProvider).signOut();
 
-    // 3. Router redirect automatically routes to Login, but explicitly ensure:
     if (context.mounted) {
       context.go(AppRoutes.login);
     }
@@ -83,13 +81,13 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final tt = theme.textTheme;
+    final tt = Theme.of(context).textTheme;
     final authUser = ref.watch(currentUserProvider);
     final profileAsync = ref.watch(profileProvider);
     final statsAsync = ref.watch(userRideStatsProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('My Profile'),
         leading: IconButton(
@@ -118,107 +116,176 @@ class ProfileScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── Header: Avatar, Name, Email, Rating ─────────────────────
-                Center(
-                  child: profileAsync.when(
-                    data: (profile) {
-                      final name = profile?.fullName ??
-                          authUser?.userMetadata?['name'] as String? ??
-                          'User';
-                      final phone = profile?.phone ??
-                          authUser?.userMetadata?['phone'] as String? ??
-                          'No phone set';
-                      final email = authUser?.email ?? 'No email';
-                      final rating = profile?.rating ?? 5.0;
-                      final avatarUrl = profile?.avatarUrl;
-                      final memberSince = profile?.createdAt ??
-                          DateTime.tryParse(authUser?.createdAt ?? '') ??
-                          DateTime.now();
+                // ── Large Avatar Header ──────────────────────────────────────
+                profileAsync.when(
+                  data: (profile) {
+                    final name = profile?.fullName ??
+                        authUser?.userMetadata?['name'] as String? ??
+                        'User';
+                    final phone = profile?.phone ??
+                        authUser?.userMetadata?['phone'] as String? ??
+                        'No phone set';
+                    final email = authUser?.email ?? 'No email';
+                    final rating = profile?.rating ?? 5.0;
+                    final avatarUrl = profile?.avatarUrl;
+                    final memberSince = profile?.createdAt ??
+                        DateTime.tryParse(authUser?.createdAt ?? '') ??
+                        DateTime.now();
 
-                      return Column(
-                        children: [
-                          _AvatarView(
-                            avatarUrl: avatarUrl,
-                            initials: profile?.initials ?? 'U',
-                            size: 88,
+                    return Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        // Large Avatar with soft shadow and edit badge
+                        Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            _LargeAvatarView(
+                              avatarUrl: avatarUrl,
+                              initials: profile?.initials ?? 'U',
+                              size: 104,
+                            ),
+                            Positioned(
+                              bottom: 2,
+                              right: 2,
+                              child: PressableScale(
+                                onTap: () => context.push(AppRoutes.editProfile),
+                                child: Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: AppColors.background, width: 2.5),
+                                    boxShadow: AppShadows.soft,
+                                  ),
+                                  child: const Icon(
+                                    Icons.edit_rounded,
+                                    size: 15,
+                                    color: AppColors.onPrimary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // User Name
+                        Text(
+                          name,
+                          style: tt.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
                           ),
-                          const SizedBox(height: 14),
-                          Text(name, style: tt.headlineSmall),
-                          const SizedBox(height: 4),
-                          Text(email, style: tt.bodySmall),
-                          const SizedBox(height: 2),
-                          Text(phone,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+
+                        // Contact info
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.email_outlined,
+                                size: 14, color: AppColors.onSurfaceMuted),
+                            const SizedBox(width: 5),
+                            Text(
+                              email,
                               style: tt.bodySmall?.copyWith(
                                 color: AppColors.onSurfaceMuted,
-                              )),
-                          const SizedBox(height: 10),
-                          // Rating & Member since badges
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (phone != 'No phone set') ...[
+                          const SizedBox(height: 4),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  borderRadius: BorderRadius.circular(100),
-                                  border: Border.all(color: AppColors.border),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.star_rounded,
-                                        size: 16, color: AppColors.accent),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      rating.toStringAsFixed(1),
-                                      style: tt.bodySmall?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.primaryDark,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  borderRadius: BorderRadius.circular(100),
-                                  border: Border.all(color: AppColors.border),
-                                ),
-                                child: Text(
-                                  'Member since ${DateFormat('MMM yyyy').format(memberSince)}',
-                                  style: tt.bodySmall?.copyWith(
-                                    color: AppColors.onSurfaceMuted,
-                                    fontSize: 11,
-                                  ),
+                              const Icon(Icons.phone_outlined,
+                                  size: 14, color: AppColors.onSurfaceMuted),
+                              const SizedBox(width: 5),
+                              Text(
+                                phone,
+                                style: tt.bodySmall?.copyWith(
+                                  color: AppColors.onSurfaceMuted,
                                 ),
                               ),
                             ],
                           ),
                         ],
-                      );
-                    },
-                    loading: () => const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: CircularProgressIndicator(color: AppColors.primary),
-                    ),
-                    error: (e, _) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Text('Could not load profile: $e',
-                          style: TextStyle(color: AppColors.error)),
-                    ),
+                        const SizedBox(height: 14),
+
+                        // Rating & Member since floating pills
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: AppRadii.pill,
+                                boxShadow: AppShadows.soft,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.star_rounded,
+                                      size: 16, color: AppColors.accent),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    rating.toStringAsFixed(1),
+                                    style: tt.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.primaryDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: AppRadii.pill,
+                                boxShadow: AppShadows.soft,
+                              ),
+                              child: Text(
+                                'Member since ${DateFormat('MMM yyyy').format(memberSince)}',
+                                style: tt.bodySmall?.copyWith(
+                                  color: AppColors.onSurfaceMuted,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  ),
+                  error: (e, _) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Text('Could not load profile: $e',
+                        style: const TextStyle(color: AppColors.error)),
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
 
-                // ── Ride statistics card ─────────────────────────────────────
-                Text('Ride Activity', style: tt.titleMedium),
-                const SizedBox(height: 10),
+                // ── Ride Activity Cards ──────────────────────────────────────
+                Text(
+                  'Ride Activity',
+                  style: tt.titleLarge?.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 statsAsync.when(
                   data: (stats) => Row(
                     children: [
@@ -227,22 +294,25 @@ class ProfileScreen extends ConsumerWidget {
                           label: 'Requests',
                           value: '${stats.totalRequests}',
                           icon: Icons.list_alt_rounded,
+                          iconColor: AppColors.primary,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: _StatCard(
                           label: 'Completed',
                           value: '${stats.completedRides}',
                           icon: Icons.check_circle_outline_rounded,
+                          iconColor: AppColors.primary,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: _StatCard(
                           label: 'Cancelled',
                           value: '${stats.cancelledRides}',
                           icon: Icons.cancel_outlined,
+                          iconColor: AppColors.error,
                         ),
                       ),
                     ],
@@ -250,7 +320,8 @@ class ProfileScreen extends ConsumerWidget {
                   loading: () => const Center(
                     child: Padding(
                       padding: EdgeInsets.all(16),
-                      child: CircularProgressIndicator(color: AppColors.primary),
+                      child:
+                          CircularProgressIndicator(color: AppColors.primary),
                     ),
                   ),
                   error: (err, stack) => const SizedBox.shrink(),
@@ -258,31 +329,44 @@ class ProfileScreen extends ConsumerWidget {
 
                 const SizedBox(height: 28),
 
-                // ── Action Buttons ──────────────────────────────────────────
-                PressableScale(
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => context.push(AppRoutes.editProfile),
-                      icon: const Icon(Icons.edit_rounded, size: 18),
-                      label: const Text('Edit Profile'),
-                    ),
+                // ── Grouped Settings Card ────────────────────────────────────
+                Text(
+                  'Account & Activity',
+                  style: tt.titleLarge?.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 10),
-
-                PressableScale(
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => context.push(AppRoutes.myRides),
-                      icon: const Icon(Icons.directions_car_rounded, size: 18),
-                      label: const Text('My Rides'),
-                    ),
+                const SizedBox(height: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: AppRadii.card,
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: Column(
+                    children: [
+                      _ProfileMenuTile(
+                        icon: Icons.person_outline_rounded,
+                        iconColor: AppColors.primary,
+                        title: 'Edit Profile',
+                        subtitle: 'Change name, phone and avatar photo',
+                        onTap: () => context.push(AppRoutes.editProfile),
+                      ),
+                      const Divider(height: 1, indent: 64),
+                      _ProfileMenuTile(
+                        icon: Icons.confirmation_number_outlined,
+                        iconColor: AppColors.secondary,
+                        title: 'My Rides',
+                        subtitle: 'View scheduled commutes and tickets',
+                        onTap: () => context.push(AppRoutes.myRides),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 20),
 
+                // ── Logout & Delete Account ──────────────────────────────────
                 PressableScale(
                   child: SizedBox(
                     width: double.infinity,
@@ -311,6 +395,7 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -320,11 +405,15 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-class _AvatarView extends StatelessWidget {
-  const _AvatarView({
+// ─────────────────────────────────────────────────────────────────────────────
+// Supporting Sub-Widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LargeAvatarView extends StatelessWidget {
+  const _LargeAvatarView({
     required this.avatarUrl,
     required this.initials,
-    this.size = 80,
+    this.size = 104,
   });
 
   final String? avatarUrl;
@@ -334,27 +423,36 @@ class _AvatarView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (avatarUrl != null && avatarUrl!.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(size / 2),
-        child: Image.network(
-          avatarUrl!,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _initialsFallback(),
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return SizedBox(
-              width: size,
-              height: size,
-              child: const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.primary,
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: AppShadows.elevated,
+          border: Border.all(color: AppColors.background, width: 3),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(size / 2),
+          child: Image.network(
+            avatarUrl!,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _initialsFallback(),
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return SizedBox(
+                width: size,
+                height: size,
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary,
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       );
     }
@@ -368,14 +466,15 @@ class _AvatarView extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.primaryTint,
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.border, width: 2),
+        boxShadow: AppShadows.elevated,
+        border: Border.all(color: AppColors.background, width: 3),
       ),
       child: Center(
         child: Text(
           initials,
           style: TextStyle(
-            fontSize: size * 0.38,
-            fontWeight: FontWeight.w700,
+            fontSize: size * 0.4,
+            fontWeight: FontWeight.w800,
             color: AppColors.primaryDark,
           ),
         ),
@@ -389,44 +488,121 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    required this.iconColor,
   });
 
   final String label;
   final String value;
   final IconData icon;
+  final Color iconColor;
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        color: AppColors.background,
+        borderRadius: AppRadii.card,
+        boxShadow: AppShadows.card,
       ),
       child: Column(
         children: [
-          Icon(icon, size: 20, color: AppColors.primary),
-          const SizedBox(height: 6),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: iconColor.withAlpha(20),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 20, color: iconColor),
+          ),
+          const SizedBox(height: 10),
           Text(
             value,
-            style: tt.titleLarge?.copyWith(
-              color: AppColors.primaryDark,
+            style: tt.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
+              fontSize: 20,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             style: tt.bodySmall?.copyWith(
-              fontSize: 11,
+              fontSize: 12,
               color: AppColors.onSurfaceMuted,
             ),
             textAlign: TextAlign.center,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProfileMenuTile extends StatelessWidget {
+  const _ProfileMenuTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+
+    return PressableScale(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconColor.withAlpha(20),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: tt.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: tt.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.onSurfaceMuted,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
