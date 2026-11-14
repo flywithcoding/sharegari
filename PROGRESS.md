@@ -900,6 +900,41 @@ Switch the app theme from dark to a clean Material 3 light theme with a white ba
 
 ---
 
+## ✅ Part 2 — Visual Polish (DONE)
+
+**Date:** 2026-11-14
+
+### What was done
+
+All 6 items from the visual polish pass completed and committed:
+
+| Item | Status |
+|------|--------|
+| 1. Rounded corners (16–24 px), `AppShadows`, more spacing, clear type scale | ✅ Done |
+| 2. Home screen clean card layout (hero booking card, ride preview, feature tiles) | ✅ Done |
+| 3. My Rides ticket-style card (perforated divider, route track, status badge, fare) | ✅ Done |
+| 4. Ride status screen vertical timeline (5 steps, 4 visual states) | ✅ Done |
+| 5. Profile screen large avatar header (104 px avatar, shadow, edit badge) | ✅ Done |
+| 6. My Rides empty state (Flutter widgets/icons only — concentric circles, ticket icon) | ✅ Done |
+| Fix 3 analyzer warnings (invalid_null_aware_operator ×1, unnecessary_underscores ×1, unused_import ×1) | ✅ Done |
+
+### Key additions in `lib/core/theme/app_theme.dart`
+- `AppShadows` — `card`, `elevated`, `soft`, `ticket` shadow definitions
+- `AppRadii` — `card` (20 px), `cardLarge` (24 px), `button` (16 px), `input` (16 px), `pill`, `bottomSheet` (24 px), `dialog` (24 px)
+- Status badge color constants: `badgeWarning*`, `badgeInfo*`
+- Upgraded Material 3 type scale
+
+### Commits
+- Visual polish rewrite (Part 2 main work)
+- `fix: resolve 3 analyzer warnings from Part 2 visual polish` (`edf97e3`)
+
+### Verification
+- `flutter analyze`: **No issues found!**
+- `flutter test`: **All 16 tests passed!**
+- `env.json` was not modified.
+
+---
+
 ## ⏭️ Step 9 — Driver Mode Screens (NEXT)
 
 **What to do manually before Step 9:**
