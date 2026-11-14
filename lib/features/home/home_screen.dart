@@ -21,7 +21,7 @@ class HomeScreen extends ConsumerWidget {
     final profile = ref.watch(profileProvider).valueOrNull;
     final myRidesAsync = ref.watch(myRidesProvider);
 
-    final displayName = profile?.fullName?.isNotEmpty == true
+    final displayName = (profile?.fullName ?? '').isNotEmpty
         ? profile!.fullName.split(' ').first
         : user?.userMetadata?['name'] as String? ??
             user?.email?.split('@').first ??
@@ -150,7 +150,7 @@ class HomeScreen extends ConsumerWidget {
                   );
                 },
                 loading: () => const _LoadingRecentCard(),
-                error: (_, __) => const _EmptyRecentCard(),
+                error: (err, stack) => const _EmptyRecentCard(),
               ),
               const SizedBox(height: 28),
 
