@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sharegari/core/theme/app_motion.dart';
 import 'package:sharegari/features/auth/login_screen.dart';
 import 'package:sharegari/features/auth/register_screen.dart';
 import 'package:sharegari/features/auth/providers/auth_providers.dart';
@@ -32,6 +33,55 @@ abstract final class AppRoutes {
 
 /// Routes that do not require authentication.
 const _publicRoutes = {AppRoutes.login, AppRoutes.register};
+
+/// Custom transition builder for smooth, accessible page navigation.
+CustomTransitionPage<void> _pageTransition({
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: AppMotion.normal,
+    reverseTransitionDuration: AppMotion.normal,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      if (AppMotion.isReducedMotion(context)) {
+        return child;
+      }
+      final curvedAnimation = CurvedAnimation(
+        parent: animation,
+        curve: AppMotion.entranceCurve,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final secondaryCurved = CurvedAnimation(
+        parent: secondaryAnimation,
+        curve: AppMotion.entranceCurve,
+        reverseCurve: Curves.easeInCubic,
+      );
+
+      final slide = Tween<Offset>(
+        begin: const Offset(0.06, 0.0),
+        end: Offset.zero,
+      ).animate(curvedAnimation);
+
+      final fadeSecondary = Tween<double>(
+        begin: 1.0,
+        end: 0.92,
+      ).animate(secondaryCurved);
+
+      return SlideTransition(
+        position: slide,
+        child: FadeTransition(
+          opacity: curvedAnimation,
+          child: FadeTransition(
+            opacity: fadeSecondary,
+            child: child,
+          ),
+        ),
+      );
+    },
+  );
+}
 
 /// Creates the auth-guarded [GoRouter].
 ///
@@ -83,52 +133,76 @@ GoRouter createRouter(WidgetRef ref) {
       GoRoute(
         path: AppRoutes.login,
         name: 'login',
-        builder: (context, state) => const LoginScreen(),
+        pageBuilder: (context, state) => _pageTransition(
+          state: state,
+          child: const LoginScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.register,
         name: 'register',
-        builder: (context, state) => const RegisterScreen(),
+        pageBuilder: (context, state) => _pageTransition(
+          state: state,
+          child: const RegisterScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.home,
         name: 'home',
-        builder: (context, state) => const HomeScreen(),
+        pageBuilder: (context, state) => _pageTransition(
+          state: state,
+          child: const HomeScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.rideRequest,
         name: 'rideRequest',
-        builder: (context, state) => const RideRequestScreen(),
+        pageBuilder: (context, state) => _pageTransition(
+          state: state,
+          child: const RideRequestScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.myRides,
         name: 'myRides',
-        builder: (context, state) => const MyRidesScreen(),
+        pageBuilder: (context, state) => _pageTransition(
+          state: state,
+          child: const MyRidesScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.profile,
         name: 'profile',
-        builder: (context, state) => const ProfileScreen(),
+        pageBuilder: (context, state) => _pageTransition(
+          state: state,
+          child: const ProfileScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.editProfile,
         name: 'editProfile',
-        builder: (context, state) => const EditProfileScreen(),
+        pageBuilder: (context, state) => _pageTransition(
+          state: state,
+          child: const EditProfileScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.rideStatus,
         name: 'rideStatus',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final requestId = state.pathParameters['requestId']!;
           final extra = state.extra as Map<String, dynamic>? ?? {};
           final departStr = extra['departAt'] as String?;
-          return RideStatusScreen(
-            requestId:          requestId,
-            pickupAddress:      extra['pickupAddress'] as String?,
-            dropAddress:        extra['dropAddress'] as String?,
-            estimatedSoloFare:  extra['estimatedSoloFare'] as double?,
-            estimatedShareFare: extra['estimatedShareFare'] as double?,
-            departAt: departStr != null ? DateTime.parse(departStr) : null,
+          return _pageTransition(
+            state: state,
+            child: RideStatusScreen(
+              requestId:          requestId,
+              pickupAddress:      extra['pickupAddress'] as String?,
+              dropAddress:        extra['dropAddress'] as String?,
+              estimatedSoloFare:  extra['estimatedSoloFare'] as double?,
+              estimatedShareFare: extra['estimatedShareFare'] as double?,
+              departAt: departStr != null ? DateTime.parse(departStr) : null,
+            ),
           );
         },
       ),

@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:sharegari/core/location/barikoi_geocoding_service.dart';
 import 'package:sharegari/core/location/geocoding_provider.dart';
 import 'package:sharegari/core/location/location_model.dart';
+import 'package:sharegari/core/theme/app_motion.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 
 /// Bottom sheet for searching locations via [GeocodingService].
 ///
@@ -192,9 +196,20 @@ class _LocationSearchSheetState
 
             // ── Body: loading / error / results / prompt ───────────────────
             if (_loading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: CircularProgressIndicator(color: AppColors.primary),
+              Expanded(
+                child: Skeletonizer(
+                  enabled: true,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: 5,
+                    separatorBuilder: (_, index) => const Divider(height: 0),
+                    itemBuilder: (_, index) => const ListTile(
+                      leading: Bone.circle(size: 24),
+                      title: Bone.text(words: 3),
+                      subtitle: Bone.text(words: 5),
+                    ),
+                  ),
+                ),
               )
             else if (_error != null)
               // Visible error banner with HTTP status code.
@@ -244,7 +259,7 @@ class _LocationSearchSheetState
                   separatorBuilder: (_, i) => const Divider(height: 0),
                   itemBuilder: (_, i) {
                     final r = _results[i];
-                    return ListTile(
+                    final tile = ListTile(
                       leading: const Icon(Icons.place_rounded,
                           color: AppColors.primary, size: 20),
                       title: Text(
@@ -263,6 +278,24 @@ class _LocationSearchSheetState
                           : null,
                       onTap: () => Navigator.pop(context, r),
                     );
+
+                    final wrapped = PressableScale(
+                      child: tile,
+                    );
+
+                    if (AppMotion.isReducedMotion(context) || i >= 8) {
+                      return wrapped;
+                    }
+
+                    return wrapped
+                        .animate(delay: (30 * i).ms)
+                        .fadeIn(duration: AppMotion.fast)
+                        .slideY(
+                          begin: 0.15,
+                          end: 0,
+                          duration: AppMotion.fast,
+                          curve: AppMotion.entranceCurve,
+                        );
                   },
                 ),
               ),

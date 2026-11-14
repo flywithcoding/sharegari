@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sharegari/core/router/app_router.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 import 'package:sharegari/features/auth/data/auth_repository.dart';
 
 /// Email + password sign-in screen.
@@ -173,24 +174,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ],
 
                   // Sign-in button
-                  ElevatedButton(
-                    onPressed: _loading ? null : _submit,
-                    child: _loading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.onPrimary),
-                          )
-                        : const Text('Sign In'),
+                  PressableScale(
+                    enabled: !_loading,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _loading ? null : _submit,
+                        child: _loading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.onPrimary),
+                              )
+                            : const Text('Sign In'),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 14),
 
                   // Register
-                  OutlinedButton(
-                    onPressed: () => context.push(AppRoutes.register),
-                    child: const Text('Create account'),
+                  PressableScale(
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => context.push(AppRoutes.register),
+                        child: const Text('Create account'),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 16),
 

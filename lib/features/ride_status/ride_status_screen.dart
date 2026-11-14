@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:sharegari/core/router/app_router.dart';
+import 'package:sharegari/core/theme/app_motion.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 import 'package:sharegari/features/ride_request/data/ride_request_model.dart';
 import 'package:sharegari/features/ride_status/data/ride_status_models.dart';
 import 'package:sharegari/features/ride_status/data/ride_status_repository.dart';
@@ -56,12 +60,6 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
   // ── Navigation helpers ────────────────────────────────────────────────────
 
   /// Pop if there is something to pop to, otherwise go to My Rides.
-  ///
-  /// This is safe regardless of how the status screen was opened:
-  ///   • Via context.push from My Rides → pop returns to My Rides.
-  ///   • Via context.push from Ride Request (after submit) → pop returns
-  ///     to Ride Request, which itself has pop to My Rides / Home.
-  ///   • Via context.go (old code path, now fixed) → fallback to myRides.
   void _goBack() {
     if (context.canPop()) {
       context.pop();
@@ -119,8 +117,6 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
           .read(rideStatusRepositoryProvider)
           .cancelRequest(widget.requestId);
       if (!mounted) return;
-      // After cancelling, go back to My Rides.
-      // Use pop-or-go so the existing back stack is preserved.
       _goBack();
     } catch (e) {
       if (!mounted) return;
@@ -135,8 +131,6 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
   // ── Try again handler ─────────────────────────────────────────────────────
 
   void _tryAgain() {
-    // Push the ride request form on top of the current stack so the user
-    // can go back. context.go would replace the stack and lose My Rides.
     context.push(AppRoutes.rideRequest);
   }
 
@@ -147,48 +141,110 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
     final statusAsync =
         ref.watch(requestStatusStreamProvider(widget.requestId));
 
-    return statusAsync.when(
-      loading: () => _scaffold(_loadingBody()),
-      error: (e, _) => _scaffold(_errorBody('$e')),
-      data: (statusStr) {
-        final status = RideRequestStatus.fromString(statusStr);
+    Widget bodyWidget;
+    String statusKey;
 
-        // Once matched, load group details
-        if (status == RideRequestStatus.matched ||
-            status == RideRequestStatus.confirmed ||
-            status == RideRequestStatus.inProgress ||
-            status == RideRequestStatus.completed) {
-          return _scaffold(_groupBody(status));
-        }
-        if (status == RideRequestStatus.expired) {
-          return _scaffold(_expiredBody());
-        }
-        if (status == RideRequestStatus.cancelled) {
-          return _scaffold(_cancelledBody());
-        }
+    if (statusAsync.isLoading) {
+      statusKey = 'loading';
+      bodyWidget = _loadingBody();
+    } else if (statusAsync.hasError) {
+      statusKey = 'error';
+      bodyWidget = _errorBody('${statusAsync.error}');
+    } else {
+      final statusStr = statusAsync.value ?? '';
+      final status = RideRequestStatus.fromString(statusStr);
+      statusKey = statusStr;
+
+      if (status == RideRequestStatus.matched ||
+          status == RideRequestStatus.confirmed ||
+          status == RideRequestStatus.inProgress ||
+          status == RideRequestStatus.completed) {
+        bodyWidget = _groupBody(status);
+      } else if (status == RideRequestStatus.expired) {
+        bodyWidget = _expiredBody();
+      } else if (status == RideRequestStatus.cancelled) {
+        bodyWidget = _cancelledBody();
+      } else {
         // searching / pending
-        return _scaffold(_searchingBody(status));
-      },
+        bodyWidget = _searchingBody(status);
+      }
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Ride Status'),
+        leading: BackButton(onPressed: _goBack),
+        automaticallyImplyLeading: true,
+      ),
+      body: SafeArea(
+        child: AnimatedSwitcher(
+          duration: AppMotion.normal,
+          switchInCurve: AppMotion.entranceCurve,
+          switchOutCurve: AppMotion.stateChangeCurve,
+          transitionBuilder: (child, animation) {
+            if (AppMotion.isReducedMotion(context)) {
+              return child;
+            }
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.96, end: 1.0).animate(animation),
+                child: child,
+              ),
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey(statusKey),
+            child: bodyWidget,
+          ),
+        ),
+      ),
     );
   }
 
-  Scaffold _scaffold(Widget body) => Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: const Text('Ride Status'),
-          // Always show a back button. Pop if there is a route to pop to
-          // (e.g. My Rides or Ride Request pushed us here); otherwise fall
-          // back to My Rides via go() so the app is never stranded.
-          leading: BackButton(onPressed: _goBack),
-          automaticallyImplyLeading: true,
-        ),
-        body: SafeArea(child: body),
-      );
-
   // ── State bodies ──────────────────────────────────────────────────────────
 
-  Widget _loadingBody() => const Center(
-        child: CircularProgressIndicator(),
+  Widget _loadingBody() => Skeletonizer(
+        enabled: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              const Center(
+                child: Column(children: [
+                  Bone.circle(size: 72),
+                  SizedBox(height: 16),
+                  Bone.text(words: 2, fontSize: 24),
+                  SizedBox(height: 8),
+                  Bone.text(words: 5, fontSize: 14),
+                ]),
+              ),
+              const SizedBox(height: 32),
+              _SectionCard(children: const [
+                Bone.text(words: 4),
+                SizedBox(height: 12),
+                Bone.text(words: 4),
+                SizedBox(height: 12),
+                Bone.text(words: 3),
+              ]),
+              const SizedBox(height: 16),
+              _SectionCard(children: const [
+                Bone.text(words: 3),
+                SizedBox(height: 8),
+                Bone.text(words: 5),
+              ]),
+              const SizedBox(height: 32),
+              const Bone(
+                width: double.infinity,
+                height: 48,
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+              ),
+            ],
+          ),
+        ),
       );
 
   Widget _errorBody(String msg) => Center(
@@ -238,31 +294,37 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
             ]),
           ),
 
-          // ── Trip details ─────────────────────────────────────────────────
-          _SectionCard(children: [
-            if (widget.pickupAddress != null)
-              _TripRow(
-                icon: Icons.trip_origin_rounded,
-                color: AppColors.primary,
-                label: widget.pickupAddress!,
-              ),
-            if (widget.dropAddress != null) ...[
-              const SizedBox(height: 12),
-              _TripRow(
-                icon: Icons.location_on_rounded,
-                color: AppColors.secondary,
-                label: widget.dropAddress!,
-              ),
-            ],
-            if (depart != null) ...[
-              const SizedBox(height: 12),
-              _TripRow(
-                icon: Icons.schedule_rounded,
-                color: AppColors.onSurfaceMuted,
-                label: DateFormat('EEE d MMM, h:mm a').format(depart),
-              ),
-            ],
-          ]),
+          // ── Trip details with Hero ───────────────────────────────────────
+          Hero(
+            tag: 'ride_card_${widget.requestId}',
+            child: Material(
+              type: MaterialType.transparency,
+              child: _SectionCard(children: [
+                if (widget.pickupAddress != null)
+                  _TripRow(
+                    icon: Icons.trip_origin_rounded,
+                    color: AppColors.primary,
+                    label: widget.pickupAddress!,
+                  ),
+                if (widget.dropAddress != null) ...[
+                  const SizedBox(height: 12),
+                  _TripRow(
+                    icon: Icons.location_on_rounded,
+                    color: AppColors.secondary,
+                    label: widget.dropAddress!,
+                  ),
+                ],
+                if (depart != null) ...[
+                  const SizedBox(height: 12),
+                  _TripRow(
+                    icon: Icons.schedule_rounded,
+                    color: AppColors.onSurfaceMuted,
+                    label: DateFormat('EEE d MMM, h:mm a').format(depart),
+                  ),
+                ],
+              ]),
+            ),
+          ),
 
           // ── Fare estimate ────────────────────────────────────────────────
           if (share != null && solo != null) ...[
@@ -296,13 +358,18 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
           if (_cancelLoading)
             const Center(child: CircularProgressIndicator())
           else
-            OutlinedButton(
-              onPressed: () => _handleCancel(status),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: BorderSide(color: AppColors.error),
+            PressableScale(
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => _handleCancel(status),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: AppColors.error),
+                  ),
+                  child: const Text('Cancel request'),
+                ),
               ),
-              child: const Text('Cancel request'),
             ),
         ],
       ),
@@ -387,13 +454,37 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
                           color: AppColors.primaryDark, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          'Group open: ${group.riderCount} of 4 riders, current price ৳${group.displayFare.toStringAsFixed(0)}, may drop as riders join. Confirmed at $cutoffTimeStr',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: AppColors.primaryDark,
-                                fontWeight: FontWeight.w600,
-                                height: 1.35,
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              const TextSpan(text: 'Group open: '),
+                              WidgetSpan(
+                                alignment: PlaceholderAlignment.middle,
+                                child: _AnimatedRiderCount(
+                                  count: group.riderCount,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: AppColors.primaryDark,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
                               ),
+                              TextSpan(
+                                text:
+                                    ' of 4 riders, current price ৳${group.displayFare.toStringAsFixed(0)}, may drop as riders join. Confirmed at $cutoffTimeStr',
+                              ),
+                            ],
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.primaryDark,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.35,
+                                ),
+                          ),
                         ),
                       ),
                     ],
@@ -462,8 +553,12 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
                     const Icon(Icons.people_rounded,
                         size: 18, color: AppColors.primary),
                     const SizedBox(width: 8),
+                    _AnimatedRiderCount(
+                      count: group.riderCount,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     Text(
-                      '${group.riderCount} riders in your group',
+                      ' riders in your group',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ],
@@ -536,13 +631,18 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
                 if (_cancelLoading)
                   const Center(child: CircularProgressIndicator())
                 else
-                  OutlinedButton(
-                    onPressed: () => _handleCancel(reqStatus),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: BorderSide(color: AppColors.error),
+                  PressableScale(
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => _handleCancel(reqStatus),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          side: const BorderSide(color: AppColors.error),
+                        ),
+                        child: const Text('Cancel ride'),
+                      ),
                     ),
-                    child: const Text('Cancel ride'),
                   ),
             ],
           ),
@@ -572,7 +672,7 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
             const SizedBox(height: 32),
             Center(
               child: Column(children: [
-                Icon(Icons.hourglass_disabled_rounded,
+                const Icon(Icons.hourglass_disabled_rounded,
                     size: 64, color: AppColors.onSurfaceMuted),
                 const SizedBox(height: 16),
                 Text(
@@ -593,15 +693,25 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
               ]),
             ),
             const SizedBox(height: 48),
-            ElevatedButton.icon(
-              onPressed: _tryAgain,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try a different time'),
+            PressableScale(
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _tryAgain,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Try a different time'),
+                ),
+              ),
             ),
             const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: _goBack,
-              child: const Text('Back to My Rides'),
+            PressableScale(
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _goBack,
+                  child: const Text('Back to My Rides'),
+                ),
+              ),
             ),
           ],
         ),
@@ -617,7 +727,7 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
             const SizedBox(height: 32),
             Center(
               child: Column(children: [
-                Icon(Icons.cancel_outlined, size: 64, color: AppColors.error),
+                const Icon(Icons.cancel_outlined, size: 64, color: AppColors.error),
                 const SizedBox(height: 16),
                 Text('Ride cancelled',
                     style: Theme.of(context)
@@ -627,14 +737,24 @@ class _RideStatusScreenState extends ConsumerState<RideStatusScreen> {
               ]),
             ),
             const SizedBox(height: 48),
-            ElevatedButton(
-              onPressed: _tryAgain,
-              child: const Text('Book a new ride'),
+            PressableScale(
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _tryAgain,
+                  child: const Text('Book a new ride'),
+                ),
+              ),
             ),
             const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: _goBack,
-              child: const Text('Back to My Rides'),
+            PressableScale(
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _goBack,
+                  child: const Text('Back to My Rides'),
+                ),
+              ),
             ),
           ],
         ),
@@ -661,9 +781,9 @@ class _PulsingDotState extends State<_PulsingDot>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
-    _scale = Tween<double>(begin: 0.7, end: 1.0).animate(
+    _scale = Tween<double>(begin: 0.85, end: 1.05).animate(
       CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
     );
   }
@@ -675,23 +795,38 @@ class _PulsingDotState extends State<_PulsingDot>
   }
 
   @override
-  Widget build(BuildContext context) => ScaleTransition(
-        scale: _scale,
-        child: Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: AppColors.primaryTint,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.primary, width: 2),
-          ),
-          child: const Icon(Icons.people_rounded,
-              size: 36, color: AppColors.primary),
+  Widget build(BuildContext context) {
+    if (AppMotion.isReducedMotion(context)) {
+      return Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: AppColors.primaryTint,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.primary, width: 2),
         ),
+        child: const Icon(Icons.people_rounded,
+            size: 36, color: AppColors.primary),
       );
+    }
+    return ScaleTransition(
+      scale: _scale,
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: AppColors.primaryTint,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.primary, width: 2),
+        ),
+        child: const Icon(Icons.people_rounded,
+            size: 36, color: AppColors.primary),
+      ),
+    );
+  }
 }
 
-/// Icon representing the group status.
+/// Icon representing the group status with entrance pop.
 class _StatusIcon extends StatelessWidget {
   const _StatusIcon({required this.status});
   final GroupStatus status;
@@ -700,7 +835,7 @@ class _StatusIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final (icon, color, bgColor) = switch (status) {
       GroupStatus.open           => (Icons.group_add_rounded, AppColors.primaryDark, AppColors.primaryTint),
-      GroupStatus.forming        => (Icons.people_rounded, AppColors.primaryDark, AppColors.primaryTint),
+      GroupStatus.forming        => (Icons.check_circle_rounded, AppColors.primaryDark, AppColors.primaryTint),
       GroupStatus.pendingDriver  => (Icons.directions_car_rounded, AppColors.primaryDark, AppColors.primaryTint),
       GroupStatus.driverAssigned => (Icons.directions_car_rounded, AppColors.secondary, const Color(0xFFFFEDD5)),
       GroupStatus.confirmed      => (Icons.check_circle_rounded, AppColors.primaryDark, AppColors.primaryTint),
@@ -708,7 +843,8 @@ class _StatusIcon extends StatelessWidget {
       GroupStatus.completed      => (Icons.flag_rounded, AppColors.onSurfaceMuted, AppColors.surfaceVariant),
       GroupStatus.cancelled      => (Icons.cancel_rounded, AppColors.error, AppColors.errorTint),
     };
-    return Container(
+
+    final iconWidget = Container(
       width: 72,
       height: 72,
       decoration: BoxDecoration(
@@ -717,6 +853,52 @@ class _StatusIcon extends StatelessWidget {
         border: Border.all(color: color.withAlpha(120), width: 2),
       ),
       child: Icon(icon, size: 36, color: color),
+    );
+
+    if (AppMotion.isReducedMotion(context)) {
+      return iconWidget;
+    }
+
+    return iconWidget
+        .animate(key: ValueKey(status))
+        .scale(
+          duration: AppMotion.normal,
+          curve: Curves.elasticOut,
+          begin: const Offset(0.4, 0.4),
+          end: const Offset(1.0, 1.0),
+        )
+        .fadeIn(duration: AppMotion.fast);
+  }
+}
+
+/// Animated rider counter that slides and fades on value changes.
+class _AnimatedRiderCount extends StatelessWidget {
+  const _AnimatedRiderCount({required this.count, this.style});
+  final int count;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: AppMotion.fast,
+      transitionBuilder: (child, anim) {
+        if (AppMotion.isReducedMotion(context)) return child;
+        return FadeTransition(
+          opacity: anim,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.3),
+              end: Offset.zero,
+            ).animate(anim),
+            child: child,
+          ),
+        );
+      },
+      child: Text(
+        '$count',
+        key: ValueKey(count),
+        style: style,
+      ),
     );
   }
 }

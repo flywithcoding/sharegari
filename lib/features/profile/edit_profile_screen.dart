@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sharegari/core/router/app_router.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 import 'package:sharegari/features/auth/providers/auth_providers.dart';
 import 'package:sharegari/features/profile/data/profile_models.dart';
 import 'package:sharegari/features/profile/data/profile_repository.dart';
@@ -336,18 +337,24 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     const SizedBox(height: 32),
 
                     // ── Save Button ───────────────────────────────────────
-                    ElevatedButton(
-                      onPressed: _saving ? null : () => _submit(profile),
-                      child: _saving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.onPrimary,
-                              ),
-                            )
-                          : const Text('Save Changes'),
+                    PressableScale(
+                      enabled: !_saving,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _saving ? null : () => _submit(profile),
+                          child: _saving
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.onPrimary,
+                                  ),
+                                )
+                              : const Text('Save Changes'),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -405,7 +412,7 @@ class _AvatarPreview extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _initials(),
+          errorBuilder: (context, error, stackTrace) => _initials(),
         ),
       );
     }

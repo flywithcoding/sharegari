@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sharegari/core/router/app_router.dart';
+import 'package:sharegari/core/theme/app_motion.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 import 'package:sharegari/features/auth/data/auth_repository.dart';
 
 /// Registration screen — collects name, email, phone, password, and role.
@@ -193,16 +195,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                ElevatedButton(
-                  onPressed: _loading ? null : _submit,
-                  child: _loading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.onPrimary),
-                        )
-                      : const Text('Create account'),
+                PressableScale(
+                  enabled: !_loading,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _submit,
+                      child: _loading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppColors.onPrimary),
+                            )
+                          : const Text('Create account'),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
 
@@ -263,10 +271,11 @@ class _RoleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: GestureDetector(
+      child: PressableScale(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: AppMotion.fast,
+          curve: AppMotion.stateChangeCurve,
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
             color: isSelected

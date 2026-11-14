@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sharegari/core/env.dart';
 import 'package:sharegari/core/location/geocoding_provider.dart';
 import 'package:sharegari/core/location/location_model.dart';
+import 'package:sharegari/core/theme/app_motion.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 
 /// Interactive flutter_map picker for pickup and drop-off.
 ///
@@ -196,9 +199,48 @@ class _MapPickerState extends ConsumerState<MapPicker> {
       point: point,
       width: 40,
       height: 40,
-      child: Icon(icon, color: color, size: 36,
-          shadows: const [Shadow(blurRadius: 4, color: Colors.black38)]),
+      child: _BouncingPin(
+        key: ValueKey('${point.latitude}_${point.longitude}_${icon.codePoint}'),
+        icon: icon,
+        color: color,
+      ),
     );
+  }
+}
+
+/// A bouncing pin widget when placed on the map.
+class _BouncingPin extends StatelessWidget {
+  const _BouncingPin({super.key, required this.icon, required this.color});
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconWidget = Icon(
+      icon,
+      color: color,
+      size: 36,
+      shadows: const [Shadow(blurRadius: 4, color: Colors.black38)],
+    );
+
+    if (AppMotion.isReducedMotion(context)) {
+      return iconWidget;
+    }
+
+    return iconWidget
+        .animate()
+        .scale(
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.elasticOut,
+          begin: const Offset(0.4, 0.4),
+          end: const Offset(1.0, 1.0),
+        )
+        .slideY(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          begin: -0.4,
+          end: 0.0,
+        );
   }
 }
 
@@ -256,10 +298,11 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: AppMotion.fast,
+        curve: AppMotion.stateChangeCurve,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? color : Colors.transparent,

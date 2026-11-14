@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sharegari/core/router/app_router.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 import 'package:sharegari/features/auth/data/auth_repository.dart';
 import 'package:sharegari/features/auth/providers/auth_providers.dart';
 import 'package:sharegari/features/profile/providers/profile_providers.dart';
@@ -101,12 +102,14 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(AppRoutes.rideRequest),
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Request Ride'),
+      floatingActionButton: PressableScale(
+        child: FloatingActionButton.extended(
+          onPressed: () => context.push(AppRoutes.rideRequest),
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.onPrimary,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Request Ride'),
+        ),
       ),
     );
   }
@@ -118,7 +121,7 @@ class _QuickRequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(20),

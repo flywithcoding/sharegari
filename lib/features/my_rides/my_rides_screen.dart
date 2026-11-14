@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:sharegari/core/router/app_router.dart';
+import 'package:sharegari/core/theme/app_motion.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 import 'package:sharegari/features/ride_request/data/ride_request_model.dart';
 import 'package:sharegari/features/ride_request/data/ride_request_repository.dart';
 import 'package:sharegari/features/ride_request/providers/ride_request_providers.dart';
@@ -75,10 +79,11 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                   final selected = _filterStatus == e.key;
                   return Padding(
                     padding: const EdgeInsets.only(right: 8, top: 8),
-                    child: GestureDetector(
+                    child: PressableScale(
                       onTap: () => setState(() => _filterStatus = e.key),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                        duration: AppMotion.fast,
+                        curve: AppMotion.stateChangeCurve,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 6),
                         decoration: BoxDecoration(
@@ -113,9 +118,7 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
             // ── Rides list ───────────────────────────────────────────
             Expanded(
               child: ridesAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                ),
+                loading: () => _buildSkeletonLoading(),
                 error: (err, stack) => _ErrorState(error: err.toString()),
                 data: (allRides) {
                   // Apply filter
@@ -130,6 +133,8 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
 
                   if (rides.isEmpty) return _EmptyState(filter: _filterStatus);
 
+                  final reducedMotion = AppMotion.isReducedMotion(context);
+
                   return RefreshIndicator(
                     color: AppColors.primary,
                     onRefresh: () async =>
@@ -142,7 +147,7 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                           const SizedBox(height: 10),
                       itemBuilder: (_, i) {
                         final ride = rides[i];
-                        return GestureDetector(
+                        Widget cardItem = PressableScale(
                           onTap: () => context.push(
                             AppRoutes.rideStatusPath(ride.id),
                             extra: <String, dynamic>{
@@ -158,6 +163,15 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
                             onCancel: () => _cancelRide(ride),
                           ),
                         );
+
+                        if (!reducedMotion && i < 8) {
+                          cardItem = cardItem
+                              .animate(delay: (40 * i).ms)
+                              .fadeIn(duration: AppMotion.normal, curve: AppMotion.entranceCurve)
+                              .slideY(begin: 0.08, end: 0, duration: AppMotion.normal, curve: AppMotion.entranceCurve);
+                        }
+
+                        return cardItem;
                       },
                     ),
                   );
@@ -165,6 +179,47 @@ class _MyRidesScreenState extends ConsumerState<MyRidesScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonLoading() {
+    return Skeletonizer(
+      enabled: true,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        itemCount: 4,
+        separatorBuilder: (_, index) => const SizedBox(height: 10),
+        itemBuilder: (_, index) => Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Bone(
+                    width: 80,
+                    height: 22,
+                    borderRadius: BorderRadius.all(Radius.circular(100)),
+                  ),
+                  Spacer(),
+                  Bone.text(words: 3),
+                ],
+              ),
+              SizedBox(height: 14),
+              Bone.text(words: 5),
+              SizedBox(height: 10),
+              Bone.text(words: 5),
+              SizedBox(height: 12),
+              Bone.text(words: 3),
+            ],
+          ),
         ),
       ),
     );
@@ -225,89 +280,95 @@ class _RideCard extends StatelessWidget {
     final dateStr =
         DateFormat('EEE, d MMM · hh:mm a').format(ride.departAt);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _statusBorderColor(ride.status),
-          width: 1.2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Status badge + date + chevron row
-          Row(
+    return Hero(
+      tag: 'ride_card_${ride.id}',
+      child: Material(
+        type: MaterialType.transparency,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _statusBorderColor(ride.status),
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _StatusBadge(status: ride.status),
-              const Spacer(),
-              Text(dateStr,
+              // Status badge + date + chevron row
+              Row(
+                children: [
+                  _StatusBadge(status: ride.status),
+                  const Spacer(),
+                  Text(dateStr,
+                      style: tt.bodySmall
+                          ?.copyWith(color: AppColors.onSurfaceMuted)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right_rounded,
+                      size: 16, color: AppColors.onSurfaceMuted),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Route
+              _RouteRow(
+                icon: Icons.my_location_rounded,
+                color: AppColors.primary,
+                label: ride.pickupAddress,
+              ),
+              const Padding(
+                padding: EdgeInsets.only(left: 10),
+                child: SizedBox(
+                  height: 14,
+                  child: VerticalDivider(
+                      color: AppColors.border, thickness: 1.5),
+                ),
+              ),
+              _RouteRow(
+                icon: Icons.location_on_rounded,
+                color: AppColors.secondary,
+                label: ride.dropAddress,
+              ),
+
+              // Flexibility
+              const SizedBox(height: 10),
+              Text('±${ride.windowMin} min flexibility',
                   style: tt.bodySmall
                       ?.copyWith(color: AppColors.onSurfaceMuted)),
-              const SizedBox(width: 4),
-              const Icon(Icons.chevron_right_rounded,
-                  size: 16, color: AppColors.onSurfaceMuted),
+
+              // Fare estimates (if available)
+              if (ride.estimatedShareFare != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Est. shared fare: ৳${ride.estimatedShareFare!.toStringAsFixed(0)}',
+                  style: tt.bodySmall?.copyWith(
+                      color: AppColors.primaryDark, fontWeight: FontWeight.w600),
+                ),
+              ],
+
+              // Cancel button (only for pending)
+              if (ride.status == RideRequestStatus.searching ||
+                  ride.status == RideRequestStatus.pending) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: onCancel,
+                    icon: const Icon(Icons.cancel_outlined,
+                        size: 16, color: AppColors.error),
+                    label: const Text('Cancel',
+                        style: TextStyle(color: AppColors.error, fontSize: 13)),
+                    style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4)),
+                  ),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 12),
-
-          // Route
-          _RouteRow(
-            icon: Icons.my_location_rounded,
-            color: AppColors.primary,
-            label: ride.pickupAddress,
-          ),
-          const Padding(
-            padding: EdgeInsets.only(left: 10),
-            child: SizedBox(
-              height: 14,
-              child: VerticalDivider(
-                  color: AppColors.border, thickness: 1.5),
-            ),
-          ),
-          _RouteRow(
-            icon: Icons.location_on_rounded,
-            color: AppColors.secondary,
-            label: ride.dropAddress,
-          ),
-
-          // Flexibility
-          const SizedBox(height: 10),
-          Text('±${ride.windowMin} min flexibility',
-              style: tt.bodySmall
-                  ?.copyWith(color: AppColors.onSurfaceMuted)),
-
-          // Fare estimates (if available)
-          if (ride.estimatedShareFare != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Est. shared fare: ৳${ride.estimatedShareFare!.toStringAsFixed(0)}',
-              style: tt.bodySmall?.copyWith(
-                  color: AppColors.primaryDark, fontWeight: FontWeight.w600),
-            ),
-          ],
-
-          // Cancel button (only for pending)
-          if (ride.status == RideRequestStatus.searching ||
-              ride.status == RideRequestStatus.pending) ...[
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onCancel,
-                icon: const Icon(Icons.cancel_outlined,
-                    size: 16, color: AppColors.error),
-                label: const Text('Cancel',
-                    style: TextStyle(color: AppColors.error, fontSize: 13)),
-                style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4)),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

@@ -854,6 +854,52 @@ Switch the app theme from dark to a clean Material 3 light theme with a white ba
 
 ---
 
+## ✅ UI Animations & Polish (DONE)
+
+**Date:** 2026-11-14
+
+### Requirements & What Was Done
+1. **Packages Added**:
+   - `flutter_animate: ^4.5.2` for lightweight declarative widget entrances and micro-interactions.
+   - `skeletonizer: ^3.0.0` for skeleton loading placeholders.
+2. **Central Motion Tokens (`lib/core/theme/app_motion.dart`)**:
+   - `AppMotion.fast` (150 ms), `AppMotion.normal` (250 ms), `AppMotion.slow` (400 ms).
+   - Curves: `Curves.easeOutCubic` for entrances, `Curves.easeInOut` for state changes.
+   - Reduced motion helper: `AppMotion.isReducedMotion(context)` respecting `MediaQuery.disableAnimations`.
+3. **Smooth Page Transitions (`lib/core/router/app_router.dart`)**:
+   - Configured custom GoRouter route transitions via `CustomTransitionPage` featuring a smooth shared-axis slide + fade-through (`AppMotion.normal`, `Curves.easeOutCubic`).
+   - Retained complete Android back gesture and back navigation support.
+4. **Content-Shaped Skeleton Loading States**:
+   - **My Rides**: Replaced spinner with a card-shaped skeleton placeholder (`_buildSkeletonLoading`) matching ride card dimensions and pill badges.
+   - **Ride Status**: Replaced spinner with a multi-section skeleton placeholder (`_loadingBody`) matching status circle, trip card, and fare cards.
+   - **Location Search Sheet**: Replaced circular progress indicator with animated skeleton list tiles.
+5. **Staggered Lists & Hero Transitions**:
+   - My Rides cards fade and slide up smoothly with a 40 ms stagger across the first 8 items.
+   - Added `Hero` transition (`tag: 'ride_card_${ride.id}'`) transitioning the ride card from My Rides directly into the Ride Status trip details view.
+6. **Press Animations & Interactive Controls (`lib/core/widgets/pressable_scale.dart`)**:
+   - Created reusable `PressableScale` (scales down to 0.97 on press with quick 150 ms spring back, respecting reduced motion).
+   - Applied to primary and secondary buttons, floating action buttons, quick-request card, role picker cards, and search items.
+   - Preserved in-button loading states inside primary buttons (`ElevatedButton.icon`).
+   - Animated selection for time-window chips (±10 / ±15 / ±20) via `AnimatedContainer` and `PressableScale`.
+7. **Status Changes & Micro-Interactions (`lib/features/ride_status/ride_status_screen.dart`)**:
+   - Used `AnimatedSwitcher` with fade and subtle scale (0.96 to 1.0) on status changes between searching, group formed, expired, and cancelled states.
+   - Gentle pulsing circle indicator on "Finding riders" respecting reduced motion.
+   - Scale-in entrance animation on group formation status icon (`_StatusIcon`).
+   - `_AnimatedRiderCount` widget providing slide and fade transitions whenever rider counts update via Realtime.
+8. **Request Screen Polish (`lib/features/ride_request/`)**:
+   - Map pin placement bounce (`_BouncingPin` with elastic spring scale and vertical bounce on placement).
+   - Smooth slide-up entrance for the bottom form panel and location search results.
+9. **Jank Removal & Accessibility**:
+   - Reused `const` widgets, isolated animation rebuilds to local widgets, avoided full-screen rebuilds.
+   - Fully tested and compliant with `MediaQuery.disableAnimationsOf(context)` / `disableAnimations`.
+
+### Verification
+- `flutter analyze`: **No issues found!**
+- `flutter test`: **All 16 unit & smoke tests passed!**
+- `env.json` was not modified.
+
+---
+
 ## ⏭️ Step 9 — Driver Mode Screens (NEXT)
 
 **What to do manually before Step 9:**

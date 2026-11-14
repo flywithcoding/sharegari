@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +11,9 @@ import 'package:sharegari/core/pricing/fare_calculator_provider.dart';
 import 'package:sharegari/core/router/app_router.dart';
 import 'package:sharegari/core/routing/ors_routing_service.dart';
 import 'package:sharegari/core/routing/routing_service.dart';
+import 'package:sharegari/core/theme/app_motion.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 import 'package:sharegari/features/auth/providers/auth_providers.dart';
 import 'package:sharegari/features/ride_request/data/ride_request_model.dart';
 import 'package:sharegari/features/ride_request/data/ride_request_repository.dart';
@@ -365,18 +368,24 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
                       const SizedBox(height: 10),
                     ],
 
-                    ElevatedButton.icon(
-                      onPressed: _canSubmit ? _submit : null,
-                      icon: _submitting
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppColors.onPrimary),
-                            )
-                          : const Icon(Icons.search_rounded),
-                      label: Text(
-                          _submitting ? 'Submitting…' : 'Find Shared Ride'),
+                    PressableScale(
+                      enabled: _canSubmit,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _canSubmit ? _submit : null,
+                          icon: _submitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: AppColors.onPrimary),
+                                )
+                              : const Icon(Icons.search_rounded),
+                          label: Text(
+                              _submitting ? 'Submitting…' : 'Find Shared Ride'),
+                        ),
+                      ),
                     ),
 
                     if (!_canSubmit && !_submitting && !_fetchingRoute)
@@ -391,7 +400,12 @@ class _RideRequestScreenState extends ConsumerState<RideRequestScreen> {
                       ),
                   ],
                 ),
-              ),
+              ).animate().fadeIn(duration: AppMotion.normal).slideY(
+                    begin: 0.08,
+                    end: 0,
+                    duration: AppMotion.normal,
+                    curve: AppMotion.entranceCurve,
+                  ),
             ),
           ],
         ),
@@ -557,7 +571,7 @@ class _LocationField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -614,7 +628,7 @@ class _TimePickerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -651,7 +665,7 @@ class _DatePickerTile extends StatelessWidget {
     final label = isToday
         ? 'Today'
         : DateFormat('EEE, d MMM').format(date);
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -689,10 +703,11 @@ class _FlexChips extends StatelessWidget {
         final selected = value == m;
         return Padding(
           padding: const EdgeInsets.only(left: 6),
-          child: GestureDetector(
+          child: PressableScale(
             onTap: () => onChanged(m),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
+              duration: AppMotion.fast,
+              curve: AppMotion.stateChangeCurve,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               decoration: BoxDecoration(
                 color:

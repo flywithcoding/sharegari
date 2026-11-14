@@ -4,10 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:sharegari/core/router/app_router.dart';
 import 'package:sharegari/core/theme/app_theme.dart';
+import 'package:sharegari/core/widgets/pressable_scale.dart';
 import 'package:sharegari/features/auth/data/auth_repository.dart';
 import 'package:sharegari/features/auth/providers/auth_providers.dart';
-import 'package:sharegari/features/my_rides/my_rides_screen.dart';
-import 'package:sharegari/features/profile/data/profile_models.dart';
 import 'package:sharegari/features/profile/providers/profile_providers.dart';
 import 'package:sharegari/features/ride_request/providers/ride_request_providers.dart';
 
@@ -254,34 +253,49 @@ class ProfileScreen extends ConsumerWidget {
                       child: CircularProgressIndicator(color: AppColors.primary),
                     ),
                   ),
-                  error: (_, __) => const SizedBox.shrink(),
+                  error: (err, stack) => const SizedBox.shrink(),
                 ),
 
                 const SizedBox(height: 28),
 
                 // ── Action Buttons ──────────────────────────────────────────
-                ElevatedButton.icon(
-                  onPressed: () => context.push(AppRoutes.editProfile),
-                  icon: const Icon(Icons.edit_rounded, size: 18),
-                  label: const Text('Edit Profile'),
-                ),
-                const SizedBox(height: 10),
-
-                OutlinedButton.icon(
-                  onPressed: () => context.push(AppRoutes.myRides),
-                  icon: const Icon(Icons.directions_car_rounded, size: 18),
-                  label: const Text('My Rides'),
-                ),
-                const SizedBox(height: 10),
-
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: const BorderSide(color: AppColors.error),
+                PressableScale(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => context.push(AppRoutes.editProfile),
+                      icon: const Icon(Icons.edit_rounded, size: 18),
+                      label: const Text('Edit Profile'),
+                    ),
                   ),
-                  onPressed: () => _handleLogout(context, ref),
-                  icon: const Icon(Icons.logout_rounded, size: 18),
-                  label: const Text('Logout'),
+                ),
+                const SizedBox(height: 10),
+
+                PressableScale(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push(AppRoutes.myRides),
+                      icon: const Icon(Icons.directions_car_rounded, size: 18),
+                      label: const Text('My Rides'),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                PressableScale(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                      ),
+                      onPressed: () => _handleLogout(context, ref),
+                      icon: const Icon(Icons.logout_rounded, size: 18),
+                      label: const Text('Logout'),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -327,7 +341,7 @@ class _AvatarView extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _initialsFallback(),
+          errorBuilder: (context, error, stackTrace) => _initialsFallback(),
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;
             return SizedBox(
